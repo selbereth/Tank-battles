@@ -1932,10 +1932,11 @@ document.getElementById('pasteCode').addEventListener('keydown',e=>{ if(e.key===
 let isAdmin=false, adminByCode=store.get('tank-admin',false), adminByAccount=false;
 const admSel=document.getElementById('admSel'), admAb=document.getElementById('admAb');
 function applyAdmin(){
-  isAdmin = adminByCode || adminByAccount;
+  const u=store.get('tank-user',null), byName=!!(u && String(u.name).toLowerCase()==='liam_the_owner');   // logging in as Liam_the_owner turns the admin tools on
+  isAdmin = adminByCode || adminByAccount || byName;
   document.getElementById('adminPanel').hidden=!isAdmin;
   document.getElementById('resetWallsBtn').hidden=!isAdmin;
-  document.getElementById('admLogout').hidden=!adminByCode || adminByAccount;
+  document.getElementById('admLogout').hidden=!adminByCode || adminByAccount || byName;
   if(!isAdmin){ drag=null; cv.style.cursor = autoMove ? 'default' : 'crosshair'; }
   renderAdmin();
 }
@@ -2295,10 +2296,10 @@ document.getElementById('acCreate').onclick=async()=>{
   if(pw.length<4) return acMsg('Password: at least 4 characters.');
   if(!crypto.subtle) return acMsg('This browser can\'t make accounts. Try Chrome.');
   const salt=acB64.enc(crypto.getRandomValues(new Uint8Array(9)));
-  store.set('tank-user',{name, salt, check:await pwCheck(name,pw,salt)}); document.getElementById('acPass').value='';
+  store.set('tank-user',{name, salt, check:await pwCheck(name,pw,salt)}); document.getElementById('acPass').value=''; applyAdmin();
   acShow(); acMsg('Account made! Hi '+name+'. Now make a save code so you never lose your stuff.');
 };
-document.getElementById('acOut').onclick=()=>{ localStorage.removeItem('tank-user'); document.getElementById('acCode').hidden=true; document.getElementById('acCopy').hidden=true; acShow(); acMsg('Logged out. Your stuff is still in this browser. Use your save code to get it back somewhere else.'); };
+document.getElementById('acOut').onclick=()=>{ localStorage.removeItem('tank-user'); applyAdmin(); document.getElementById('acCode').hidden=true; document.getElementById('acCopy').hidden=true; acShow(); acMsg('Logged out. Your stuff is still in this browser. Use your save code to get it back somewhere else.'); };
 document.getElementById('acSave').onclick=async()=>{
   const u=acUser(); if(!u) return; const pw=document.getElementById('acPass2').value;
   if(await pwCheck(u.name,pw,u.salt)!==u.check) return acMsg('That password is wrong.');
