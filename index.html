@@ -428,10 +428,12 @@ button{touch-action:manipulation}
 <section class="screen" data-screen="tcodes" hidden>
   <div class="scr-top"><button type="button" class="backbtn" data-back>← Back to menu</button><span class="scr-hint">or press Esc</span></div>
   <h2 id="secTcodes">Tank codes</h2>
-  <p class="note">Got a tank code? Type it here to get that tank. It becomes <b>your</b> tank, with its own brain and color, and some special tanks are extra strong! You can also share your own tank: copy your code and a friend can type it in to get a tank just like yours.</p>
+  <p class="note">Got a tank code? Type it here to get that tank. It becomes <b>your</b> tank, with its own brain and color. Special tanks can be faster, slower, tougher, or hit harder, and some have their own abilities. Your own tank is saved, so you can go back to it. You can also share your own tank: copy your code and a friend can type it in to get a tank just like yours.</p>
   <div class="tcodes">
     <div class="ed-actions"><input id="pasteCode" type="text" placeholder="Type a tank code" aria-label="Tank code" spellcheck="false" autocomplete="off"><button type="button" class="primary" id="playCode">Get this tank!</button></div>
     <p class="note" id="codeErr" aria-live="polite"></p>
+    <p class="note" id="tcInfo"></p>
+    <div class="ed-actions"><button type="button" id="tcBack" hidden>↩ Go back to my own tank</button></div>
     <div class="ed-actions"><button type="button" id="copyCode">Copy my tank code</button><span id="copyMsg" aria-live="polite"></span></div>
     <textarea id="myCode" readonly rows="2" aria-label="Your tank code" hidden></textarea>
   </div>
@@ -1044,7 +1046,7 @@ function startLevel(){
   const you = makeTank({type:TYPES[chosen], hp:130 + (d-1)*15 + upC*4, cool:Math.max(16, 34 - d - Math.floor(upC/100)), spd:1, aim:Math.min(.14, .07 + d*.003 + upC*.0001), dmg:1 + (d-1)*.05 + upC*.006}, PLAYER_SPAWN[0], PLAYER_SPAWN[1], 'you');
   // upgrades bought in the shop: on for this whole battle, one battle used up
   you.perks=new Set();
-  if(!fairMode() && chosen===MY_INDEX && my.bonus>1){ const kb=Math.min(2,my.bonus); you.hp=you.hpMax=Math.round(you.hp*kb); you.dmgMult*=kb; }   // special tank from a tank code
+  if(!fairMode() && chosen===MY_INDEX) applyCodeTank(you);   // special tank from a tank code
   if(!fairMode()){ const pb=1+Math.min(playerLevel(),1000)*.003; you.hp=you.hpMax=Math.round(you.hp*pb); you.dmgMult*=pb; }   // player level makes your tank stronger too
   if(mode==='duo'){ you.hp=you.hpMax=200; you.coolBase=28; you.aimRate=.12; you.dmgMult=1; you.label=net.role==='host'?'YOU':'PLAYER 1'; }
   if(!fairMode()) for(const P of PERM){ if(playerLevel()>=P.at && (prog.perm||{})[P.id]!==false) you.perks.add(P.id); }
@@ -1724,13 +1726,36 @@ function oppFrom(d){
 const B36='0123456789abcdefghijklmnopqrstuvwxyz';
 // Named tank codes that are built into the game (Liam's own short code)
 const NAMED_TANKS = {};
-// Special tanks you get by typing their code on the Tank codes screen (bonus = extra health and damage while it's your tank)
+// Special tanks you get by typing their code on the Tank codes screen.
+// stats: hp (health), dmg (damage), spd (speed), rate (reload time, smaller = shoots faster), aim (turret turning); perks = abilities it always has.
+const BR={ circle:PRESETS['Circle Shooter'], bull:PRESETS['Bulldozer'], snipe:PRESETS['Sneaky Sniper'], dodge:PRESETS['Dodger'], hunt:PRESETS['Power-up Hunter'],
+  liam:[['danger','flee','shoot'],['mine','avoidmine','shoot'],['low','getpow','shoot'],['hit','zigzag','shoot'],['pnear','getpow','shoot'],['close','circle','shoot'],['see','circle','shoot'],['nosee','toward','none']] };
+const TIERS_TXT={common:'Common',rare:'Rare',epic:'EPIC',super:'SUPER',ultra:'ULTRA',omega:'OMEGA'};
 const SPECIAL_TANKS = {
-  LIAMSTRONG: {name:'Liam Strong', color:'#e0b400', bonus:1.5, rules:[['danger','flee','shoot'],['mine','avoidmine','shoot'],['low','getpow','shoot'],['hit','zigzag','shoot'],['pnear','getpow','shoot'],['close','circle','shoot'],['see','circle','shoot'],['nosee','toward','none']]},
-  SPEEDY:     {name:'Speedy', color:'#11a3b8', bonus:1.15, rules:[['danger','flee','shoot'],['mine','avoidmine','shoot'],['hit','zigzag','shoot'],['see','zigzag','shoot'],['nosee','random','none']]},
-  SNIPER:     {name:'Sniper', color:'#2b6cd9', bonus:1.15, rules:[['danger','flee','shoot'],['mine','avoidmine','shoot'],['close','away','shoot'],['see','stop','shoot'],['nosee','toward','none']]},
-  BULLDOZER:  {name:'Bulldozer', color:'#e8572a', bonus:1.2, rules:[['danger','flee','shoot'],['see','toward','shoot'],['nosee','toward','none']]},
+  LIAMSTRONG:{name:'Liam Strong',color:'#e0b400',tier:'common',brain:'liam',  s:{hp:1.5,dmg:1.5,spd:1,rate:.9,aim:1},desc:'Strong and smart all-rounder'},
+  SPEEDY:    {name:'Speedy',     color:'#11a3b8',tier:'common',brain:'dodge', s:{hp:.9,dmg:1,spd:1.4,rate:.8,aim:1},desc:'Fast and quick to shoot'},
+  TURBO:     {name:'Turbo',      color:'#2fd3d3',tier:'common',brain:'dodge', s:{hp:.7,dmg:.9,spd:1.7,rate:1,aim:1.2},desc:'The fastest tank, but fragile'},
+  BULLDOZER: {name:'Bulldozer',  color:'#e8572a',tier:'common',brain:'bull',  s:{hp:1.8,dmg:1.2,spd:.9,rate:1.1,aim:1},desc:'Charges in with lots of health'},
+  GUNNER:    {name:'Gunner',     color:'#8b5a2b',tier:'common',brain:'circle',s:{hp:1,dmg:.5,spd:1,rate:.35,aim:1},desc:'Machine gun: shoots very fast, small hits'},
+  SNIPER:    {name:'Sniper',     color:'#2b6cd9',tier:'common',brain:'snipe', s:{hp:.8,dmg:2.4,spd:.9,rate:1.7,aim:1.6},desc:'Slow reload, huge damage, great aim'},
+  TITAN:     {name:'Titan',      color:'#5a5f66',tier:'rare',  brain:'bull',  s:{hp:2.8,dmg:1.5,spd:.6,rate:1.3,aim:.9},desc:'Slow giant with tons of health'},
+  BRICK:     {name:'Brick',      color:'#8d6e63',tier:'rare',  brain:'snipe', s:{hp:4,dmg:.8,spd:.5,rate:1.4,aim:.9},desc:'Super slow wall of health'},
+  GLASSCANNON:{name:'Glass Cannon',color:'#ff5ca8',tier:'rare',brain:'dodge', s:{hp:.4,dmg:3.5,spd:1.1,rate:.9,aim:1.2},desc:'Breaks easily but hits like a truck'},
+  BOUNCER:   {name:'Bouncer',    color:'#ffd23f',tier:'rare',  brain:'circle',s:{hp:1,dmg:1.3,spd:1.1,rate:.8,aim:1},perks:['bouncy'],desc:'Bullets bounce off walls'},
+  HEATSEEKER:{name:'Heat Seeker',color:'#ff5a5a',tier:'rare',  brain:'hunt',  s:{hp:1,dmg:1.1,spd:1,rate:.9,aim:1},perks:['homing'],desc:'Bullets chase enemies'},
+  FROSTY:    {name:'Frosty',     color:'#7fe3ff',tier:'rare',  brain:'circle',s:{hp:1.1,dmg:1,spd:1.1,rate:1,aim:1},perks:['freeze'],desc:'Freezes whoever it hits'},
+  GHOSTY:    {name:'Ghosty',     color:'#b8b8c8',tier:'rare',  brain:'dodge', s:{hp:.9,dmg:1.1,spd:1.3,rate:1,aim:1},perks:['ghost'],desc:'Sneaky: enemies lose track of it'},
+  TRIPLE:    {name:'Triple Threat',color:'#e84fb0',tier:'rare',brain:'circle',s:{hp:1,dmg:.8,spd:1,rate:1.1,aim:1},perks:['triple'],desc:'Shoots 3 bullets at once'},
+  ZILLA:     {name:'Zilla',      color:'#8bc34a',tier:'epic',  brain:'bull',  s:{hp:2,dmg:1.6,spd:.8,rate:1.2,aim:1},perks:['giant'],desc:'A giant tank with double damage'},
+  ELITE:     {name:'Elite',      color:'#19a974',tier:'epic',  brain:'hunt',  s:{hp:2.2,dmg:2,spd:1.25,rate:.7,aim:1.3},perks:['homing'],desc:'Strong everywhere, homing bullets'},
+  SUPERTANK: {name:'Super Tank', color:'#e0402c',tier:'super', brain:'liam',  s:{hp:4,dmg:3,spd:1.3,rate:.5,aim:1.5},perks:['triple','homing','big'],desc:'Triple homing big bullets and lots of health'},
+  ULTRATANK: {name:'Ultra Tank', color:'#6d4bd8',tier:'ultra', brain:'liam',  s:{hp:9,dmg:6,spd:1.45,rate:.4,aim:1.8},perks:['triple','homing','big','bouncy','freeze'],desc:'Even stronger than the Super Tank'},
+  OMEGATANK: {name:'Omega Tank', color:'#ffcc00',tier:'omega', brain:'liam',  s:{hp:25,dmg:12,spd:1.6,rate:.35,aim:2},perks:['triple','homing','big','bouncy','freeze','giant'],desc:'The strongest tank in the game'},
 };
+const statLine=(s,perks)=>'🛡️ health ×'+s.hp+' · ⚔️ damage ×'+s.dmg+' · 💨 speed ×'+s.spd+' · 🔥 shooting '+(s.rate<=1?'×'+(Math.round(10/s.rate)/10)+' faster':'×'+(Math.round(10*s.rate)/10)+' slower')+(perks&&perks.length?' · ✨ '+perks.map(id=>(ABILITIES.find(a=>a.id===id)||{name:id}).name).join(', '):'');
+function applyCodeTank(you){ const st=my.stats; if(!st) return; const k=st.s;
+  you.hp=you.hpMax=Math.round(you.hp*k.hp); you.dmgMult*=k.dmg; you.spd*=Math.min(1.9,k.spd); you.coolBase=Math.max(8,Math.round(you.coolBase*k.rate)); you.aimRate=Math.min(.3,you.aimRate*k.aim);
+  for(const id of (st.perks||[])) you.perks.add(id); }
 function tankCode(){
   const ci=Math.max(0,COLORS.indexOf(my.color));
   const body=cleanRules(my.rules).map(r=>B36[CONDS.findIndex(c=>c[0]===r[0])]+B36[ACTS.findIndex(a=>a[0]===r[1])]+B36[ANDS.findIndex(a=>a[0]===r[2])]).join('');
@@ -1767,13 +1792,19 @@ document.getElementById('playCode').onclick=()=>{
   const opp=readTankCode(raw);
   const sp=SPECIAL_TANKS[raw.toUpperCase().replace(/[^A-Z0-9]/g,'')];
   let got=null;
-  if(sp) got={name:sp.name, color:sp.color, rules:sp.rules.map(r=>r.slice()), bonus:sp.bonus};
+  if(sp) got={name:sp.name, color:sp.color, rules:BR[sp.brain].map(r=>r.slice()), stats:{s:sp.s, perks:sp.perks||[], tier:sp.tier}};
   else if(opp){ const rules=readShortCode.last && /TK-/i.test(raw) ? readShortCode.last : null; got={name:opp.name, color:COLORS.includes(opp.color)?opp.color:COLORS[0], rules:(rules||[]).map(r=>r.slice())}; if(!got.rules.length) got=null; }
   if(!got){ err.textContent='That tank code doesn\'t work. Check the spelling, or paste the whole code starting with TK-.'; return; }
-  my={name:got.name, color:got.color, rules:got.rules}; if(got.bonus) my.bonus=got.bonus; saveMy();
-  chosen=MY_INDEX; store.set('tank-choice',chosen); nameIn.value=my.name; renderRules(); renderColors(); buildCards();
-  err.textContent='You got '+my.name+'! It\'s your tank now'+(got.bonus?' and it\'s '+Math.round((got.bonus-1)*100)+'% stronger':'')+'. Starts next battle.'; document.getElementById('pasteCode').value='';
+  if(!my.stats) store.set('tank-mytank-backup',{name:my.name,color:my.color,rules:my.rules.map(r=>r.slice())});   // keep your own tank so you can go back
+  my={name:got.name, color:got.color, rules:got.rules}; if(got.stats) my.stats=got.stats; saveMy();
+  chosen=MY_INDEX; store.set('tank-choice',chosen); nameIn.value=my.name; renderRules(); renderColors(); buildCards(); tcInfo();
+  const T=got.stats&&got.stats.tier; err.textContent=(T&&T!=='common'?TIERS_TXT[T]+' TANK! ':'')+'You got '+my.name+'! It\'s your tank now. Starts next battle.'; document.getElementById('pasteCode').value='';
 };
+function tcInfo(){ const el=document.getElementById('tcInfo'), back=document.getElementById('tcBack'); if(!el) return;
+  const b=store.get('tank-mytank-backup',null); back.hidden=!(my.stats && b);
+  el.textContent = my.stats ? '🎟️ Your tank: '+my.name+' ('+(TIERS_TXT[my.stats.tier]||'Common')+'). '+statLine(my.stats.s,my.stats.perks) : 'Your tank is your own tank. Type a code to get a special tank!'; }
+document.getElementById('tcBack').onclick=()=>{ const b=store.get('tank-mytank-backup',null); if(!b) return; my={name:b.name,color:b.color,rules:b.rules.map(r=>r.slice())}; saveMy(); localStorage.removeItem('tank-mytank-backup'); nameIn.value=my.name; renderRules(); renderColors(); buildCards(); tcInfo(); document.getElementById('codeErr').textContent='You\'re back to your own tank.'; };
+tcInfo();
 document.getElementById('pasteCode').addEventListener('keydown',e=>{ if(e.key==='Enter') document.getElementById('playCode').click(); });
 
 // ---------- Admins: the game's owner/editors on claude.ai, or anyone given the admin code ----------
@@ -2126,7 +2157,7 @@ document.getElementById('netLeave').onclick=()=>{ netStatus(''); netReset(); };
 (()=>{ if(window.claude && window.claude.use) document.getElementById('netWhere').hidden=false; })();
 
 // ---------- Account: username + password, and save codes that bring your stuff back anywhere ----------
-const SAVE_KEYS=['tank-prog','tank-best','tank-level','tank-choice','tank-custom','tank-cust','tank-auto','tank-automove','tank-tutorial','tank-super','tank-super-owned','tank-beat301','tank-genmaps','tank-user'];
+const SAVE_KEYS=['tank-prog','tank-best','tank-level','tank-choice','tank-custom','tank-cust','tank-auto','tank-automove','tank-tutorial','tank-super','tank-super-owned','tank-beat301','tank-mytank-backup','tank-genmaps','tank-user'];
 const acMsg=t=>{ document.getElementById('acMsg').textContent=t; };
 const acB64={ enc:u8=>{ let s=''; for(let i=0;i<u8.length;i+=8192) s+=String.fromCharCode.apply(null,u8.subarray(i,i+8192)); return btoa(s).replace(/\+/g,'-').replace(/\//g,'_').replace(/=+$/,''); },
   dec:t=>{ const s=atob(t.replace(/-/g,'+').replace(/_/g,'/')); const u=new Uint8Array(s.length); for(let i=0;i<s.length;i++) u[i]=s.charCodeAt(i); return u; } };
