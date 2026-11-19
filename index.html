@@ -1,3 +1,4 @@
+<!doctype html><html lang="en"><head><meta charset="utf-8"><meta name="viewport" content="width=device-width,initial-scale=1,viewport-fit=cover"><meta name="theme-color" content="#4f6b2c"><style>:root{color-scheme:light;box-sizing:border-box;padding-top:env(safe-area-inset-top,0px);padding-bottom:env(safe-area-inset-bottom,0px)}html{scroll-padding-top:env(safe-area-inset-top,0px)}body{margin:0;padding:0;font:14px -apple-system,BlinkMacSystemFont,sans-serif;background:#fff;color:#000}img{max-width:100%}[hidden]:not([hidden=until-found i]){display:none!important}</style></head><body>
 <title>Tank Battles 1</title>
 <meta name="claude:viewport-fit-sides" content="cover">
 <link rel="preconnect" href="https://fonts.googleapis.com">
@@ -92,6 +93,11 @@ body.xmas header::before,body.xmas .menu-in::before{content:"";display:block;hei
 @keyframes xl{50%{filter:brightness(.55)}}
 body.xmas h1::after{content:" 🎄"}
 .xmasbtn{border-color:#2fd36b!important}
+button{touch-action:manipulation}
+.touchpad{position:fixed;left:0;right:0;bottom:0;z-index:50;display:flex;justify-content:space-between;align-items:flex-end;padding:8px 8px calc(8px + env(safe-area-inset-bottom,0px));pointer-events:none}.touchpad[hidden]{display:none}
+.tp-grp{--k:min(62px,14.5vw);pointer-events:auto;display:grid;grid-template-columns:repeat(3,var(--k));grid-template-rows:repeat(2,var(--k));gap:5px}.tp-grp[hidden]{display:none}
+.tp-grp button{width:var(--k);height:var(--k);padding:0;font-size:22px;border-radius:14px;opacity:.88;touch-action:none;user-select:none;-webkit-user-select:none;-webkit-touch-callout:none}
+.tp-grp button.fire{background:#e0402c;color:#fff;border-color:#e0402c}.tp-grp button.on{background:var(--fg);color:var(--bg)}.tp-grp .tp-tag{grid-column:3;grid-row:1;align-self:center;text-align:center;font:700 12px var(--body);color:var(--fg);background:var(--panel);border-radius:8px;padding:2px 0}
 .screen{display:flex;flex-direction:column;gap:16px}.screen[hidden]{display:none}
 .scr-top{display:flex;align-items:center;gap:10px;flex-wrap:wrap}.backbtn{font-weight:700}.scr-hint{color:var(--muted);font-size:13px}.scr-pts{margin:0;font-weight:600}
 .invite{position:fixed;inset:0;z-index:95;display:grid;place-items:center;background:rgba(0,0,0,.6);padding:16px}.invite[hidden]{display:none}
@@ -333,7 +339,7 @@ body.xmas h1::after{content:" 🎄"}
     </div>
     </details>
     <p class="note" id="netStatus" aria-live="polite"></p>
-    <p class="note">In the battle, drive with <kbd>W</kbd><kbd>A</kbd><kbd>S</kbd><kbd>D</kbd> or the arrow keys and shoot with <kbd>Space</kbd>. Your gun aims by itself.</p>
+    <p class="note">In the battle, drive with <kbd>W</kbd><kbd>A</kbd><kbd>S</kbd><kbd>D</kbd> or the arrow keys and shoot with <kbd>Space</kbd>. Your gun aims by itself. On a phone or tablet, on-screen buttons show up for you.</p>
   </div>
 
 </section>
@@ -411,7 +417,7 @@ body.xmas h1::after{content:" 🎄"}
   <h2 id="secMulti">Multiplayer</h2>
   <p class="note"><b>No login needed:</b> 2 players on 1 computer and tank codes work in Chrome or any browser. For live play over the internet, use <b>Online battle</b> in the menu.</p>
   <h3 class="sub3" id="secDuo">2 players on 1 computer: no login, no internet</h3>
-  <p class="note">Play with a friend sitting next to you, live! Team up against the bots, or battle each other. Each of you drives a tank with the keyboard. Your guns aim by themselves, so you just drive and shoot.</p>
+  <p class="note">Play with a friend sitting next to you, live! Team up against the bots, or battle each other. Each of you drives a tank with the keyboard. On a phone or tablet, each of you gets on-screen buttons. Your guns aim by themselves, so you just drive and shoot.</p>
   <div class="duokeys">
     <div><b>Player 1</b> (yellow, left side)<br><kbd>W</kbd> <kbd>A</kbd> <kbd>S</kbd> <kbd>D</kbd> drive · <kbd>Space</kbd> shoot</div>
     <div><b>Player 2</b> (right side)<br><kbd>↑</kbd> <kbd>←</kbd> <kbd>↓</kbd> <kbd>→</kbd> drive · <kbd>Enter</kbd> shoot</div>
@@ -483,6 +489,7 @@ body.xmas h1::after{content:" 🎄"}
   <footer class="copy">© 2026 Liam. Tank Battles 1: game idea, levels, rules and design by Liam. All rights reserved.</footer>
 </div>
 
+<div class="touchpad" id="tpad" hidden></div>
 <script>
 (() => {
 const W = 960, H = 600;
@@ -2240,6 +2247,29 @@ function duoKey(e,down){
   if(net.role==='guest') netSend({t:'k', k:keys.p2});
 }
 addEventListener('keydown',e=>duoKey(e,true)); addEventListener('keyup',e=>duoKey(e,false));
+// ---------- Phone and tablet: on-screen buttons for 2-player and online battles ----------
+const tpad=document.getElementById('tpad');
+const isTouchDev=()=>{ try { return !!window.__touch || matchMedia('(pointer:coarse)').matches || 'ontouchstart' in window; } catch(e){ return false; } };
+function padWho(i){ return i===0 ? (net.role==='guest' ? 'p2' : 'p1') : 'p2'; }
+function padSet(who,act,down){ if(!!keys[who][act]===down) return; keys[who][act]=down; if(net.role==='guest') netSend({t:'k',k:keys.p2}); }
+[0,1].forEach(i=>{
+  const g=document.createElement('div'); g.className='tp-grp'; g.dataset.i=i; g.setAttribute('role','group'); g.setAttribute('aria-label', i===0?'Player 1 buttons':'Player 2 buttons');
+  const cells=[['fire','🔥','Shoot'],['up','▲','Up'],null,['left','◀','Left'],['down','▼','Down'],['right','▶','Right']];
+  for(const c of cells){ if(!c){ const t=document.createElement('div'); t.className='tp-tag'; t.textContent=i===0?'P1':'P2'; g.appendChild(t); continue; }
+    const b=document.createElement('button'); b.type='button'; b.textContent=c[1]; b.setAttribute('aria-label',c[2]); if(c[0]==='fire') b.className='fire';
+    const press=e=>{ e.preventDefault(); try { b.setPointerCapture(e.pointerId); } catch(err){} padSet(padWho(i),c[0],true); b.classList.add('on'); };
+    const lift=e=>{ e.preventDefault(); padSet(padWho(i),c[0],false); b.classList.remove('on'); };
+    b.addEventListener('pointerdown',press); b.addEventListener('pointerup',lift); b.addEventListener('pointercancel',lift); b.addEventListener('lostpointercapture',lift); b.addEventListener('contextmenu',e=>e.preventDefault());
+    g.appendChild(b); }
+  tpad.appendChild(g);
+});
+function updatePad(){
+  const show = isTouchDev() && mode==='duo' && screen==='battle' && !menuOn && !tutOn;
+  tpad.hidden=!show; if(!show) return;
+  tpad.children[1].hidden=!!net.role;                        // 2nd pad only when two people share one screen
+  tpad.firstChild.style.marginRight = net.role ? 'auto' : '';
+}
+setInterval(updatePad,250);
 addEventListener('blur',()=>{ keys.p1={}; keys.p2={}; });
 document.getElementById('duoStart').onclick=()=>{
   duo.p1=0; duo.p2=0; duo.lvl=1; duo.coop=document.getElementById('duoMode').value!=='vs'; duo.map=+document.getElementById('duoMap').value||0;
@@ -2269,3 +2299,5 @@ startLevel();
 requestAnimationFrame(frame);
 })();
 </script>
+
+</body></html>
