@@ -1063,8 +1063,10 @@ function startLevel(){
   // Bots wear the code tanks' looks and colors (for show only: their strength is set above). They are still called "Bot <name>".
   if(mode!=='online') tanks.forEach((t,i)=>{ if(t.team!=='bot' || plan[i-1+0]===undefined) return; const sp=plan[i-1]; if(sp.label) return;
     const lv=Math.min(diff,MAX_LEVEL), keys=Object.keys(SPECIAL_TANKS).filter(k=>{ const tr=SPECIAL_TANKS[k].tier; return t.boss ? (tr==='super'&&lv>=100)||(tr==='ultra'&&lv>=300)||(tr==='omega'&&lv>=500)||(tr==='epic'&&lv<100) : tr==='common' || (tr==='rare'&&lv>=8) || (tr==='epic'&&lv>=40); });
+    const j=i-1, pOld=j<3?1:0.6/(j-2);   // the first 3 spots are always the original bots; after that they show up less and less
+    if(!t.boss && ((lv*37+j*101)%100)/100 < pOld) return;
     if(!keys.length) return; const k=keys[(lv*7+i*5+(t.boss?3:0))%keys.length], P=SPECIAL_TANKS[k];
-    t.type=Object.assign({},t.type,{color:P.color}); t.look=LOOKS[k]; t.label=(t.boss?'BOSS ':'Bot ')+k.charAt(0)+k.slice(1).toLowerCase(); });   // named like the code, e.g. Bot Heatseeker
+    t.type=Object.assign({},t.type,{color:P.color}); t.look=LOOKS[k]; t.label=t.boss?'BOSS Crazy':'Bot Crazy'; });
   // Bots fight back harder when your tank has lots of abilities switched on, and they get abilities of their own as levels go up.
   if(!fairMode()){
     const k=you.perks.size, hp=id=>you.perks.has(id), f=(hp('rapid')?3:1)*(hp('triple')?2:1)*(hp('big')?1.75:1)*(hp('giant')?2:1)*(hp('homing')?1.3:1)*(hp('freeze')?1.3:1)*(hp('bouncy')?1.1:1), lv=Math.min(diff,MAX_LEVEL), BOT_POOL=['rapid','homing','triple','big','speed','bouncy','giant','freeze'];
