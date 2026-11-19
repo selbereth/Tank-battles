@@ -1752,7 +1752,7 @@ const NAMED_TANKS = {};
 // stats: hp (health), dmg (damage), spd (speed), rate (reload time, smaller = shoots faster), aim (turret turning); perks = abilities it always has.
 const BR={ circle:PRESETS['Circle Shooter'], bull:PRESETS['Bulldozer'], snipe:PRESETS['Sneaky Sniper'], dodge:PRESETS['Dodger'], hunt:PRESETS['Power-up Hunter'],
   liam:[['danger','flee','shoot'],['mine','avoidmine','shoot'],['low','getpow','shoot'],['hit','zigzag','shoot'],['pnear','getpow','shoot'],['close','circle','shoot'],['see','circle','shoot'],['nosee','toward','none']] };
-const TIERS_TXT={common:'Common',rare:'Rare',epic:'EPIC',super:'SUPER',ultra:'ULTRA',omega:'OMEGA'};
+const TIERS_TXT={common:'Common',rare:'Rare',epic:'EPIC',super:'Overpowered',ultra:'Overpowered',omega:'Overpowered'};
 const SPECIAL_TANKS = {
   LIAMSTRONG:{name:'Liam Strong',color:'#e0b400',tier:'common',brain:'liam',  s:{hp:1.5,dmg:1.5,spd:1,rate:.9,aim:1},desc:'Strong and smart all-rounder'},
   SPEEDY:    {name:'Speedy',     color:'#11a3b8',tier:'common',brain:'dodge', s:{hp:.9,dmg:1,spd:1.4,rate:.8,aim:1},desc:'Fast and quick to shoot'},
@@ -1876,7 +1876,7 @@ document.getElementById('playCode').onclick=()=>{
   my={name:got.name, color:got.color, rules:got.rules}; if(got.stats) my.stats=got.stats; saveMy();
   if(sp){ const k=tankKey(sp), o=ownedTanks(); if(!o.includes(k)) store.set('tank-owned',[...o,k]); }
   chosen=MY_INDEX; store.set('tank-choice',chosen); nameIn.value=my.name; renderRules(); renderColors(); buildCards(); tcInfo(); renderTankStore();
-  const T=got.stats&&got.stats.tier; err.textContent=(T&&T!=='common'?TIERS_TXT[T]+' TANK! ':'')+'You got '+my.name+'! It\'s your tank now. Starts next battle.'; document.getElementById('pasteCode').value='';
+  const T=got.stats&&got.stats.tier; err.textContent=(T&&T!=='common'?TIERS_TXT[T].toUpperCase()+' TANK! ':'')+'You got '+my.name+'! It\'s your tank now. Starts next battle.'; document.getElementById('pasteCode').value='';
 };
 const TIER_PRICE={common:300,rare:1500,epic:4000,super:15000,ultra:60000,omega:250000};
 const tankKey=sp=>Object.keys(SPECIAL_TANKS).find(k=>SPECIAL_TANKS[k]===sp);
@@ -1892,8 +1892,8 @@ function renderTankStore(){
   for(const key of Object.keys(SPECIAL_TANKS)){ const sp=SPECIAL_TANKS[key], price=TIER_PRICE[sp.tier], has=own.includes(key), using=my.stats&&my.stats.look===key;
     const row=document.createElement('div'); row.className='shopitem'+(using?' tsown':'');
     const TC={common:'#9aa0a6',rare:'#2b6cd9',epic:'#8e44ad',super:'#e0402c',ultra:'#6d4bd8',omega:'#e0a800'}[sp.tier];
-    row.innerHTML= has ? '<div class="tsrow"><span class="chip" style="background:'+sp.color+'">'+(TIERS_TXT[sp.tier]||'').slice(0,3).toUpperCase()+'</span><span class="si-text"><b>'+esc(key.charAt(0)+key.slice(1).toLowerCase())+'</b> <small>Code: <b>'+key+'</b> · '+esc(sp.desc)+'</small></span></div><div class="tsstats">'+esc(statLine(sp.s,sp.perks))+'</div>'
-      : '<div class="tsrow"><span class="chip" style="background:'+TC+'">'+(TIERS_TXT[sp.tier]||'').slice(0,3).toUpperCase()+'</span><span class="si-text"><b>❓ Mystery '+(TIERS_TXT[sp.tier]||'').toLowerCase()+' tank</b> <small>Buy it to find out which tank it is!</small></span></div>';
+    row.innerHTML= has ? '<div class="tsrow"><span class="chip" style="background:'+sp.color+'">'+(['super','ultra','omega'].includes(sp.tier)?'OP':(TIERS_TXT[sp.tier]||'').slice(0,3).toUpperCase())+'</span><span class="si-text"><b>'+esc(key.charAt(0)+key.slice(1).toLowerCase())+'</b> <small>Code: <b>'+key+'</b> · '+esc(sp.desc)+'</small></span></div><div class="tsstats">'+esc(statLine(sp.s,sp.perks))+'</div>'
+      : '<div class="tsrow"><span class="chip" style="background:'+TC+'">'+(['super','ultra','omega'].includes(sp.tier)?'OP':(TIERS_TXT[sp.tier]||'').slice(0,3).toUpperCase())+'</span><span class="si-text"><b>❓ Mystery '+(TIERS_TXT[sp.tier]||'').toLowerCase()+' tank</b> <small>Buy it to find out which tank it is!</small></span></div>';
     const btn=document.createElement('button'); btn.type='button';
     if(has){ btn.textContent=using?'Using it':'Use this tank'; btn.disabled=!!using; btn.onclick=()=>{ equipTank(key); renderTankStore(); }; }
     else { btn.textContent=price.toLocaleString()+' pts'; btn.disabled=prog.points<price; btn.setAttribute('aria-label','Buy a mystery '+sp.tier+' tank for '+price+' points');
