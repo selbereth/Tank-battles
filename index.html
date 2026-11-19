@@ -88,6 +88,10 @@ button.danger{background:#c62828;color:#fff;border-color:#c62828}
 .warnbox{background:#fff3c4;color:#5a4300;border:2px solid #ffd23f;border-radius:10px;padding:10px 12px;max-width:none}
 .acct{display:flex;flex-direction:column;gap:8px;background:var(--panel);border:1.5px solid var(--line);border-radius:10px;padding:12px 14px}.acct[hidden]{display:none}.acct h3{margin:0}
 .acct input,.acct textarea{font:500 14px var(--mono);border-radius:8px;border:1.5px solid var(--line);background:var(--bg);color:var(--fg);padding:8px 10px}.acct input{flex:1;min-width:140px}.acct textarea{width:100%;box-sizing:border-box}.acct textarea[hidden],.acct [hidden]{display:none}.acwho{margin:0;display:flex;align-items:center;gap:10px;flex-wrap:wrap}
+body.xmas header::before,body.xmas .menu-in::before{content:"";display:block;height:14px;margin-bottom:8px;background:radial-gradient(circle at 10px 7px,#ff3b3b 0 5px,transparent 6px) 0 0/48px 14px repeat-x,radial-gradient(circle at 26px 7px,#ffd23f 0 5px,transparent 6px) 0 0/48px 14px repeat-x,radial-gradient(circle at 42px 7px,#2fd36b 0 5px,transparent 6px) 0 0/48px 14px repeat-x;animation:xl 1.2s steps(2) infinite}
+@keyframes xl{50%{filter:brightness(.55)}}
+body.xmas h1::after{content:" 🎄"}
+.xmasbtn{border-color:#2fd36b!important}
 .screen{display:flex;flex-direction:column;gap:16px}.screen[hidden]{display:none}
 .scr-top{display:flex;align-items:center;gap:10px;flex-wrap:wrap}.backbtn{font-weight:700}.scr-hint{color:var(--muted);font-size:13px}.scr-pts{margin:0;font-weight:600}
 .invite{position:fixed;inset:0;z-index:95;display:grid;place-items:center;background:rgba(0,0,0,.6);padding:16px}.invite[hidden]{display:none}
@@ -251,6 +255,7 @@ button.danger{background:#c62828;color:#fff;border-color:#c62828}
 
   <div class="controls">
     <button id="menuBtn" type="button">☰ Menu</button>
+    <button id="xmasBtn" type="button" class="xmasbtn" hidden>🎄 Christmas: on</button>
     <button class="primary" id="restartBtn" type="button">Start over at level 1</button>
     <button id="pauseBtn" type="button" aria-pressed="false">Pause</button>
     <button id="resetWallsBtn" type="button">Reset walls</button>
@@ -1430,6 +1435,33 @@ function drawHazards(){
 
 // ---------- Drawing ----------
 function css(name){ return getComputedStyle(document.documentElement).getPropertyValue(name).trim(); }
+// ---------- Christmas: lights and snow every December (or add ?xmas=1 to the link to preview) ----------
+const XMAS_COLORS=['#ff3b3b','#ffd23f','#2fd36b','#3ea0ff','#ff7ad9'];
+const xmasSeason=()=>{ try { if(/[?&]xmas=1/.test(location.search) || window.__xmas) return true; } catch(e){} return new Date().getMonth()===11; };
+const xmasOff=()=>store.get('tank-xmas-off',null)===String(new Date().getFullYear());
+let XMAS=false;
+function xmasUpdate(){ XMAS=xmasSeason() && !xmasOff(); document.body.classList.toggle('xmas',XMAS); const b=document.getElementById('xmasBtn'); if(b){ b.hidden=!xmasSeason(); b.textContent='🎄 Christmas: '+(XMAS?'on':'off'); b.setAttribute('aria-pressed',XMAS); } }
+document.getElementById('xmasBtn').onclick=()=>{ if(XMAS) store.set('tank-xmas-off',String(new Date().getFullYear())); else store.set('tank-xmas-off',null); xmasUpdate(); };
+xmasUpdate();
+const FLAKES=Array.from({length:70},()=>({x:Math.random()*960,y:Math.random()*600,r:1+Math.random()*2.5,v:.4+Math.random()*.9,s:Math.random()*6}));
+function bulb(x,y,i,r){ const on=((Math.floor(Date.now()/450)+i)%3)!==0; const c=XMAS_COLORS[i%XMAS_COLORS.length];
+  ctx.globalAlpha=on?1:.45; ctx.fillStyle=c; ctx.beginPath(); ctx.arc(x,y,r,0,TAU); ctx.fill();
+  if(on){ ctx.globalAlpha=.28; ctx.beginPath(); ctx.arc(x,y,r*2.2,0,TAU); ctx.fill(); } ctx.globalAlpha=1; }
+function xmasWalls(){ for(const w of WALLS){
+    ctx.fillStyle='#fff'; ctx.beginPath(); const n=Math.max(2,Math.floor(w.w/14));
+    ctx.rect(w.x,w.y,w.w,5); for(let k=0;k<n;k++){ ctx.moveTo(w.x+(k+.5)*w.w/n,w.y+3); ctx.arc(w.x+(k+.5)*w.w/n,w.y+4,5+((k*7)%3),0,TAU); } ctx.fill();
+    const per=2*(w.w+w.h), cnt=Math.max(4,Math.floor(per/22)); for(let k=0;k<cnt;k++){ let d=k/cnt*per, x,y;
+      if(d<w.w){x=w.x+d;y=w.y;} else if(d<w.w+w.h){x=w.x+w.w;y=w.y+d-w.w;} else if(d<2*w.w+w.h){x=w.x+w.w-(d-w.w-w.h);y=w.y+w.h;} else {x=w.x;y=w.y+w.h-(d-2*w.w-w.h);}
+      bulb(x,y,k,3); } } }
+function xmasTank(t){ const R=radiusOf(t); ctx.save(); ctx.translate(t.x,t.y);
+  ctx.save(); ctx.rotate(t.a); ctx.fillStyle='#ffffffee'; ctx.beginPath(); ctx.ellipse(-R*.35,-R*.35,R*.45,R*.22,.3,0,TAU); ctx.ellipse(R*.3,R*.3,R*.38,R*.2,-.3,0,TAU); ctx.fill(); ctx.restore();
+  ctx.save(); ctx.rotate(t.turret); ctx.fillStyle='#fff'; ctx.beginPath(); ctx.arc(-R*.1,-R*.12,R*.3,0,TAU); ctx.fill(); ctx.fillRect(R*.9,-R*.17,R*.5,R*.12); ctx.restore();
+  const n=8; for(let k=0;k<n;k++){ const a=k/n*TAU; bulb(Math.cos(a)*(R+3),Math.sin(a)*(R+3),k,2.6); }
+  ctx.restore(); }
+function xmasSnow(){ ctx.fillStyle='#fff'; ctx.globalAlpha=.85;
+  for(const f of FLAKES){ f.y+=f.v; f.x+=Math.sin((f.y+f.s*50)/40)*.5; if(f.y>H+4){ f.y=-4; f.x=Math.random()*W; } ctx.beginPath(); ctx.arc(f.x,f.y,f.r,0,TAU); ctx.fill(); }
+  ctx.globalAlpha=1; const n=Math.floor(W/24); for(let k=0;k<=n;k++){ const x=k*24+6; bulb(x,5+Math.abs(Math.sin(k*.9))*7,k,3.2); bulb(x,H-6-Math.abs(Math.sin(k*.9))*7,k+2,3.2); }
+  const m=Math.floor(H/24); for(let k=1;k<m;k++){ const y=k*24; bulb(5+Math.abs(Math.sin(k*.9))*7,y,k+1,3.2); bulb(W-5-Math.abs(Math.sin(k*.9))*7,y,k+3,3.2); } }
 function draw(){
   const mp=curMap;
   const ground=mp.ground||css('--ground'), grid=mp.grid||css('--ground-grid'), wall=mp.wall||css('--wall'), wallTop=mp.top||css('--wall-top');
@@ -1443,10 +1475,11 @@ function draw(){
       const L=Math.max(w.w,w.h), hz=w.w>w.h;
       for(let k=1;k<4;k++){ const q=k*L/4, z=k%2?6:-6; if(hz){ ctx.moveTo(w.x+q-8,w.y+4); ctx.lineTo(w.x+q+z,w.y+w.h/2); ctx.lineTo(w.x+q-4,w.y+w.h-4); } else { ctx.moveTo(w.x+4,w.y+q-8); ctx.lineTo(w.x+w.w/2,w.y+q+z); ctx.lineTo(w.x+w.w-4,w.y+q-4); } }
       ctx.stroke(); } }
+  if(XMAS) xmasWalls();
   for(const t of tanks){ if(!t.alive){ ctx.fillStyle='#00000055'; ctx.beginPath(); ctx.arc(t.x,t.y,t.baseR+4,0,TAU); ctx.fill(); } }
   for(const p of pickups) drawPickup(p);
   drawHazards();
-  for(const t of tanks){ if(t.alive) drawTank(t); }
+  for(const t of tanks){ if(t.alive){ drawTank(t); if(XMAS) xmasTank(t); } }
   for(const b of bullets){
     ctx.fillStyle = b.freeze ? '#7fe3ff' : b.homing ? '#ff5a5a' : b.r>4 ? b.owner.type.color : '#1b1b1b';
     ctx.beginPath(); ctx.arc(b.x,b.y,b.r,0,TAU); ctx.fill();
@@ -1460,6 +1493,7 @@ function draw(){
     ctx.globalAlpha=Math.min(1,f.life/30); ctx.fillStyle='#000a'; ctx.fillText(f.text,f.x+2,f.y+2); ctx.fillStyle=f.col; ctx.fillText(f.text,f.x,f.y);
   }
   ctx.globalAlpha=1;
+  if(XMAS) xmasSnow();
 }
 function drawPickup(p){
   const bob=Math.sin(p.age*0.08)*3, pulse=1+Math.sin(p.age*0.15)*0.08;
