@@ -1906,8 +1906,8 @@ const WHEEL_COST=1000, WHEEL_W={common:58,rare:30,epic:10.5,super:.9,ultra:.4,om
 let wheelBusy=false, wheelRot=0;
 function spinWheel(){
   const msg=document.getElementById('wheelMsg'), btn=document.getElementById('wheelBtn'), own=ownedTanks();
-  const left=Object.keys(SPECIAL_TANKS).filter(k=>!own.includes(k));
-  if(wheelBusy) return; if(!left.length){ msg.textContent='You already have every tank!'; return; }
+  const left=Object.keys(SPECIAL_TANKS);   // you can win a tank you already have
+  if(wheelBusy) return;
   if(prog.points<WHEEL_COST){ msg.textContent='You need '+WHEEL_COST.toLocaleString()+' points to spin.'; return; }
   prog.points-=WHEEL_COST; saveProg(); renderProg();
   let r=Math.random()*left.reduce((a,k)=>a+WHEEL_W[SPECIAL_TANKS[k].tier],0), win=left[left.length-1];
@@ -1917,8 +1917,8 @@ function spinWheel(){
   wheelRot=(Math.floor(wheelRot/360)+6)*360+(360-centre);
   wheelBusy=true; btn.disabled=true; msg.textContent='Spinning...';
   document.getElementById('wheel').style.transform='rotate('+wheelRot+'deg)';
-  setTimeout(()=>{ wheelBusy=false; btn.disabled=false; store.set('tank-owned',[...ownedTanks(),win]); equipTank(win); renderProg();
-    const sp=SPECIAL_TANKS[win]; msg.textContent='🎉 You won the '+(TIERS_TXT[tier]||'')+' tank '+sp.name+'! Code: '+win+'. You are using it now.'; renderTankStore(); },4400);
+  setTimeout(()=>{ wheelBusy=false; btn.disabled=false; const dupe=ownedTanks().includes(win); if(!dupe) store.set('tank-owned',[...ownedTanks(),win]); equipTank(win); renderProg();
+    const sp=SPECIAL_TANKS[win]; msg.textContent=(dupe?'😮 You won ':'🎉 You won the ')+(TIERS_TXT[tier]||'')+' tank '+sp.name+(dupe?' again!':'!')+' Code: '+win+'. You are using it now.'; renderTankStore(); },4400);
 }
 document.getElementById('wheelBtn').onclick=spinWheel;
 function tcInfo(){ const el=document.getElementById('tcInfo'), back=document.getElementById('tcBack'); if(!el) return;
