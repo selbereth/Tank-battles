@@ -1813,7 +1813,8 @@ const statLine=(s,perks)=>'🛡️ health ×'+s.hp+' · ⚔️ damage ×'+s.dmg+
 function applyCodeTank(you){ const st=my.stats; if(!st) return; const k=st.s;
   you.hp=you.hpMax=Math.round(you.hp*k.hp); you.dmgMult*=k.dmg; you.spd*=Math.min(1.9,k.spd); you.coolBase=Math.max(8,Math.round(you.coolBase*k.rate)); you.aimRate=Math.min(.3,you.aimRate*k.aim);
   for(const id of (st.perks||[])) you.perks.add(id);
-  you.look=LOOKS[st.look]||null; }
+  const nk=String(my.name||'').toUpperCase().replace(/[^A-Z0-9]/g,'');
+  you.look=LOOKS[st.look]||LOOKS[nk==='TRIPLETHREAT'?'TRIPLE':nk]||null; }   // older saved code tanks have no look saved, so find it by name
 function tankCode(){
   const ci=Math.max(0,COLORS.indexOf(my.color));
   const body=cleanRules(my.rules).map(r=>B36[CONDS.findIndex(c=>c[0]===r[0])]+B36[ACTS.findIndex(a=>a[0]===r[1])]+B36[ANDS.findIndex(a=>a[0]===r[2])]).join('');
