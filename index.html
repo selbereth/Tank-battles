@@ -152,6 +152,7 @@ button{touch-action:manipulation}
 .tourbtn:disabled,.shopitem button:disabled{opacity:.45;cursor:not-allowed}
 .cup{width:22px;height:22px;border-radius:50% 50% 40% 40%}
 .tstore .shopitem{flex-wrap:wrap}.tstore .tsrow{display:flex;gap:8px;align-items:center;width:100%}.tstore small{display:block}.tstore .tsstats{font-size:11px;opacity:.85}.tstore .tsown{outline:2px solid #3fbf4f}
+.wheelbox{display:flex;gap:16px;align-items:center;flex-wrap:wrap;margin:6px 0 14px}.wheelwrap{position:relative;width:170px;height:176px;padding-top:6px}.wpoint{position:absolute;top:-8px;left:50%;transform:translateX(-50%);font-size:22px;z-index:2;color:#c62828}.wheel{width:164px;height:164px;border-radius:50%;border:4px solid #222;margin:6px auto 0;transition:transform 4.2s cubic-bezier(.12,.6,.1,1);background:conic-gradient(#9aa0a6 0 150deg,#2b6cd9 150deg 240deg,#8e44ad 240deg 300deg,#e0402c 300deg 330deg,#ffcc00 330deg 360deg)}.wside{flex:1;min-width:200px}
 .shop{display:grid;grid-template-columns:repeat(auto-fill,minmax(230px,1fr));gap:8px}
 .shopitem{display:flex;align-items:center;gap:10px;background:var(--panel);border:1.5px solid var(--line);border-radius:8px;padding:8px 10px}
 .si-text{flex:1;min-width:0;display:flex;flex-direction:column}
@@ -397,8 +398,10 @@ button{touch-action:manipulation}
   <h2 id="secShop">Upgrade shop</h2>
   <p class="note">Buy an ability your tank keeps for the whole battle, for the next few battles. It starts with your next battle. Beat level 301 to unlock Super tank here!</p>
   <div class="shop" id="shop"></div>
-  <h2 id="secTankStore">Tank store</h2>
-  <p class="note">Buy a special tank with your points. You keep it forever, and you can switch to it any time. You can also get these tanks by typing their code on the Tank codes screen!</p>
+  <h2 id="secTankStore">Mystery tank store</h2>
+  <p class="note">Spin the wheel for 1,000 points to win a mystery tank, or buy one for its price. You don't see which tank it is until you own it! You keep tanks forever and can switch any time. You can also get them with a code on the Tank codes screen.</p>
+  <div class="wheelbox"><div class="wheelwrap"><div class="wpoint">▼</div><div class="wheel" id="wheel"></div></div>
+    <div class="wside"><button type="button" class="primary" id="wheelBtn">🎡 Spin the wheel! (1,000 pts)</button><p class="note" id="wheelMsg" aria-live="polite"></p></div></div>
   <div class="shop tstore" id="tankStore"></div>
 
 </section>
@@ -1885,14 +1888,36 @@ function renderTankStore(){
   const own=ownedTanks();
   for(const key of Object.keys(SPECIAL_TANKS)){ const sp=SPECIAL_TANKS[key], price=TIER_PRICE[sp.tier], has=own.includes(key), using=my.stats&&my.stats.look===key;
     const row=document.createElement('div'); row.className='shopitem'+(using?' tsown':'');
-    row.innerHTML='<div class="tsrow"><span class="chip" style="background:'+sp.color+'">'+(TIERS_TXT[sp.tier]||'').slice(0,3).toUpperCase()+'</span><span class="si-text"><b>'+esc(key.charAt(0)+key.slice(1).toLowerCase())+'</b> <small>Code: <b>'+key+'</b> · '+esc(sp.desc)+'</small></span></div><div class="tsstats">'+esc(statLine(sp.s,sp.perks))+'</div>';
+    const TC={common:'#9aa0a6',rare:'#2b6cd9',epic:'#8e44ad',super:'#e0402c',ultra:'#6d4bd8',omega:'#e0a800'}[sp.tier];
+    row.innerHTML= has ? '<div class="tsrow"><span class="chip" style="background:'+sp.color+'">'+(TIERS_TXT[sp.tier]||'').slice(0,3).toUpperCase()+'</span><span class="si-text"><b>'+esc(key.charAt(0)+key.slice(1).toLowerCase())+'</b> <small>Code: <b>'+key+'</b> · '+esc(sp.desc)+'</small></span></div><div class="tsstats">'+esc(statLine(sp.s,sp.perks))+'</div>'
+      : '<div class="tsrow"><span class="chip" style="background:'+TC+'">'+(TIERS_TXT[sp.tier]||'').slice(0,3).toUpperCase()+'</span><span class="si-text"><b>❓ Mystery '+(TIERS_TXT[sp.tier]||'').toLowerCase()+' tank</b> <small>Buy it to find out which tank it is!</small></span></div>';
     const btn=document.createElement('button'); btn.type='button';
     if(has){ btn.textContent=using?'Using it':'Use this tank'; btn.disabled=!!using; btn.onclick=()=>{ equipTank(key); renderTankStore(); }; }
-    else { btn.textContent=price.toLocaleString()+' pts'; btn.disabled=prog.points<price; btn.setAttribute('aria-label','Buy '+sp.name+' for '+price+' points');
+    else { btn.textContent=price.toLocaleString()+' pts'; btn.disabled=prog.points<price; btn.setAttribute('aria-label','Buy a mystery '+sp.tier+' tank for '+price+' points');
       btn.onclick=()=>{ if(prog.points<price) return; prog.points-=price; store.set('tank-owned',[...ownedTanks(),key]); saveProg(); renderProg(); equipTank(key); renderTankStore(); }; }
     row.appendChild(btn); box.appendChild(row); }
 }
 renderTankStore();
+// Wheel of chance: 1,000 points for a random tank you don't own yet. Rarer tanks are less likely.
+const WHEEL_COST=1000, WHEEL_W={common:50,rare:30,epic:12,super:5,ultra:2.5,omega:.5};
+let wheelBusy=false, wheelRot=0;
+function spinWheel(){
+  const msg=document.getElementById('wheelMsg'), btn=document.getElementById('wheelBtn'), own=ownedTanks();
+  const left=Object.keys(SPECIAL_TANKS).filter(k=>!own.includes(k));
+  if(wheelBusy) return; if(!left.length){ msg.textContent='You already have every tank!'; return; }
+  if(prog.points<WHEEL_COST){ msg.textContent='You need '+WHEEL_COST.toLocaleString()+' points to spin.'; return; }
+  prog.points-=WHEEL_COST; saveProg(); renderProg();
+  let r=Math.random()*left.reduce((a,k)=>a+WHEEL_W[SPECIAL_TANKS[k].tier],0), win=left[left.length-1];
+  for(const k of left){ r-=WHEEL_W[SPECIAL_TANKS[k].tier]; if(r<=0){ win=k; break; } }
+  const tier=SPECIAL_TANKS[win].tier, slices={common:[0,150],rare:[150,240],epic:[240,300],super:[300,330],ultra:[330,360],omega:[330,360]}[tier];
+  const centre=slices[0]+3+Math.random()*(slices[1]-slices[0]-6);   // land somewhere inside the right colour
+  wheelRot=(Math.floor(wheelRot/360)+6)*360+(360-centre);
+  wheelBusy=true; btn.disabled=true; msg.textContent='Spinning...';
+  document.getElementById('wheel').style.transform='rotate('+wheelRot+'deg)';
+  setTimeout(()=>{ wheelBusy=false; btn.disabled=false; store.set('tank-owned',[...ownedTanks(),win]); equipTank(win); renderProg();
+    const sp=SPECIAL_TANKS[win]; msg.textContent='🎉 You won the '+(TIERS_TXT[tier]||'')+' tank '+sp.name+'! Code: '+win+'. You are using it now.'; renderTankStore(); },4400);
+}
+document.getElementById('wheelBtn').onclick=spinWheel;
 function tcInfo(){ const el=document.getElementById('tcInfo'), back=document.getElementById('tcBack'); if(!el) return;
   const b=store.get('tank-mytank-backup',null); back.hidden=!(my.stats && b);
   el.textContent = my.stats ? '🎟️ Your tank: '+my.name+' ('+(TIERS_TXT[my.stats.tier]||'Common')+'). '+statLine(my.stats.s,my.stats.perks) : 'Your tank is your own tank. Type a code to get a special tank!'; }
