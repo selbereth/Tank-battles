@@ -1518,16 +1518,20 @@ function drawTank(t){
   const R = radiusOf(t), ghost = hasP(t,'ghost');
   if(ghost) ctx.globalAlpha = .4;
   if(t.team==='you'){ ctx.fillStyle='#ffffff55'; ctx.beginPath(); ctx.arc(t.x,t.y,R+6,0,TAU); ctx.fill(); }
+  const L=t.look||null;
+  if(L&&L.glow){ const pu=.5+.5*Math.sin(performance.now()/220); ctx.save(); ctx.globalAlpha=(.16+.2*pu)*(ghost?.4:1); ctx.fillStyle=L.glow; ctx.beginPath(); ctx.arc(t.x,t.y,R*(1.5+.15*pu),0,TAU); ctx.fill(); ctx.restore(); }
   ctx.save(); ctx.translate(t.x,t.y);
   ctx.save(); ctx.rotate(t.a);
   ctx.fillStyle='#2b2b2b'; ctx.fillRect(-R,-R,R*2,R*.45); ctx.fillRect(-R,R-R*.45,R*2,R*.45);
   ctx.fillStyle=t.type.color; ctx.fillRect(-R+2,-R+R*.33,R*2-4,R*2-R*.66);
   if(t.boss){ ctx.fillStyle='#c62828'; ctx.fillRect(-R+6,-4,R*2-12,8); }
+  if(L) drawLookBody(t,R,L);
   ctx.restore();
   ctx.rotate(t.turret);
-  ctx.fillStyle='#222'; ctx.fillRect(0,-R*.17,R*1.65,R*.34);
+  if(L && L.gun) drawLookTurret(t,R,L); else { ctx.fillStyle='#222'; ctx.fillRect(0,-R*.17,R*1.65,R*.34); }
   ctx.fillStyle=t.boss?'#c62828':t.type.color; ctx.strokeStyle='#0006'; ctx.lineWidth=2;
   ctx.beginPath(); ctx.arc(0,0,R*.5,0,TAU); ctx.fill(); ctx.stroke();
+  if(L) drawLookTop(t,R,L);
   ctx.restore();
   ctx.globalAlpha=1;
   if(t.perks && t.perks.size){ ctx.strokeStyle='#ffd23f'; ctx.lineWidth=2; ctx.setLineDash([4,5]); ctx.beginPath(); ctx.arc(t.x,t.y,R+14,0,TAU); ctx.stroke(); ctx.setLineDash([]); }
@@ -1752,10 +1756,64 @@ const SPECIAL_TANKS = {
   ULTRATANK: {name:'Ultra Tank', color:'#6d4bd8',tier:'ultra', brain:'liam',  s:{hp:9,dmg:6,spd:1.45,rate:.4,aim:1.8},perks:['triple','homing','big','bouncy','freeze'],desc:'Even stronger than the Super Tank'},
   OMEGATANK: {name:'Omega Tank', color:'#ffcc00',tier:'omega', brain:'liam',  s:{hp:25,dmg:12,spd:1.6,rate:.35,aim:2},perks:['triple','homing','big','bouncy','freeze','giant'],desc:'The strongest tank in the game'},
 };
+// How each code tank looks. armor 0-3 (plates), spikes, gun: long|fat|twin|gatling|triple|cannon, glow = aura color, stripe = racing stripe, fin = back fins
+const LOOKS={
+  LIAMSTRONG:{armor:1,gun:'long',star:1}, SPEEDY:{gun:'twin',stripe:'#fff',fin:1}, TURBO:{gun:'long',stripe:'#fff',fin:2}, BULLDOZER:{armor:1,plow:1,gun:'fat'},
+  GUNNER:{gun:'gatling'}, SNIPER:{gun:'long2',scope:1},
+  TITAN:{armor:2,gun:'fat'}, BRICK:{armor:3,gun:'fat',bricks:1}, GLASSCANNON:{gun:'cannon',glow:'#ff5ca8'}, BOUNCER:{gun:'twin',spring:1},
+  HEATSEEKER:{gun:'long',missile:1}, FROSTY:{gun:'fat',ice:1,glow:'#7fe3ff'}, GHOSTY:{gun:'long',glow:'#ffffff'}, TRIPLE:{gun:'triple'},
+  ZILLA:{armor:2,spikes:1,gun:'cannon',eyes:1}, ELITE:{armor:1,gun:'twin',fin:1,stripe:'#ffd23f',glow:'#19a974'},
+  SUPERTANK:{armor:2,spikes:1,gun:'triple',star:1,glow:'#ff8a5c'},
+  ULTRATANK:{armor:3,spikes:1,gun:'triple',star:1,fin:2,glow:'#a58bff',crown:0},
+  OMEGATANK:{armor:4,spikes:1,gun:'triple',star:1,fin:2,glow:'#ffcc00',crown:1},
+};
+function drawLookBody(t,R,L,tm){   // body is drawn pointing right (+x); we draw on top of it
+  const col=t.type.color, dark='#0007';
+  if(L.stripe){ ctx.fillStyle=L.stripe; ctx.fillRect(-R+3,-R*.1,R*2-6,R*.2); }
+  if(L.fin){ ctx.fillStyle=dark; for(const sg of [-1,1]){ ctx.beginPath(); ctx.moveTo(-R,sg*R*.5); ctx.lineTo(-R*(1.35+.2*L.fin),sg*R*(.5+.45*L.fin)); ctx.lineTo(-R*.4,sg*R*.9); ctx.closePath(); ctx.fill(); } }
+  if(L.plow){ ctx.fillStyle='#555'; ctx.beginPath(); ctx.moveTo(R,-R*1.05); ctx.lineTo(R*1.4,-R*.7); ctx.lineTo(R*1.4,R*.7); ctx.lineTo(R,R*1.05); ctx.closePath(); ctx.fill(); }
+  if(L.armor){
+    const a=L.armor;
+    ctx.fillStyle='#4a4f57'; ctx.strokeStyle='#000a'; ctx.lineWidth=1.5;
+    for(const sg of [-1,1]){ ctx.beginPath(); ctx.rect(-R*.9,sg*R*(.78+.06*a)-R*.17*(sg>0?0:1)-(sg>0?0:0),R*1.8,R*.2+R*.03*a); }
+    // side armor plates
+    for(const sg of [-1,1]){ const y=sg>0?R*.78:-R*(.78+.18+.05*a); ctx.fillStyle='#5b616a'; ctx.fillRect(-R*.95,y,R*1.9,R*(.18+.05*a)); ctx.strokeRect(-R*.95,y,R*1.9,R*(.18+.05*a)); }
+    if(a>=2){ ctx.fillStyle='#6a7079'; ctx.beginPath(); ctx.moveTo(R*.5,-R*.95); ctx.lineTo(R*1.25,0); ctx.lineTo(R*.5,R*.95); ctx.lineTo(R*.8,0); ctx.closePath(); ctx.fill(); ctx.stroke(); }  // front wedge
+    if(a>=3){ ctx.fillStyle='#7b828c'; ctx.fillRect(-R*1.05,-R*.8,R*.35,R*1.6); ctx.strokeRect(-R*1.05,-R*.8,R*.35,R*1.6);
+      ctx.fillStyle='#c9ced6'; for(let i=-2;i<=2;i++){ ctx.beginPath(); ctx.arc(-R*.35+i*R*.3,-R*.88,1.8,0,TAU); ctx.arc(-R*.35+i*R*.3,R*.88,1.8,0,TAU); ctx.fill(); } }
+    if(a>=4){ ctx.fillStyle=L.glow||'#ffcc00'; ctx.globalAlpha=.9; for(const sg of [-1,1]){ ctx.fillRect(-R*.9,sg*R*1.1-(sg>0?0:R*.1),R*1.8,R*.1); } ctx.globalAlpha=1;
+      ctx.fillStyle='#8c939e'; ctx.beginPath(); ctx.moveTo(-R*.2,-R*1.25); ctx.lineTo(R*.9,-R*1.1); ctx.lineTo(R*.9,-R*.9); ctx.lineTo(-R*.2,-R*.95); ctx.closePath(); ctx.fill(); ctx.stroke();
+      ctx.beginPath(); ctx.moveTo(-R*.2,R*1.25); ctx.lineTo(R*.9,R*1.1); ctx.lineTo(R*.9,R*.9); ctx.lineTo(-R*.2,R*.95); ctx.closePath(); ctx.fill(); ctx.stroke(); }
+  }
+  if(L.bricks){ ctx.strokeStyle='#0008'; ctx.lineWidth=1; for(let i=-3;i<=3;i++){ ctx.beginPath(); ctx.moveTo(i*R*.3,-R*.9); ctx.lineTo(i*R*.3,R*.9); ctx.stroke(); } }
+  if(L.spikes){ ctx.fillStyle='#d9dde3'; ctx.strokeStyle='#000a'; ctx.lineWidth=1;
+    for(const sg of [-1,1]) for(let i=0;i<4;i++){ const x=-R*.7+i*R*.5, y=sg*R*(L.armor>=3?1.2:1.0); ctx.beginPath(); ctx.moveTo(x-R*.12,y); ctx.lineTo(x,y+sg*R*.34); ctx.lineTo(x+R*.12,y); ctx.closePath(); ctx.fill(); ctx.stroke(); } }
+  if(L.ice){ ctx.fillStyle='#bff3ff'; for(let i=-2;i<=2;i++){ ctx.beginPath(); ctx.moveTo(i*R*.3-R*.1,R*.35); ctx.lineTo(i*R*.3,R*.7+Math.abs(i)%2*R*.15); ctx.lineTo(i*R*.3+R*.1,R*.35); ctx.fill(); } }
+  if(L.spring){ ctx.strokeStyle='#222'; ctx.lineWidth=2; ctx.beginPath(); for(let i=0;i<7;i++){ ctx.lineTo(-R*.8+i*R*.27,(i%2?-1:1)*R*.22); } ctx.stroke(); }
+  if(L.eyes){ ctx.fillStyle='#ffeb3b'; for(const sg of [-1,1]){ ctx.beginPath(); ctx.arc(R*.8,sg*R*.35,R*.14,0,TAU); ctx.fill(); ctx.fillStyle='#000'; ctx.fillRect(R*.82,sg*R*.35-1,R*.1,2); ctx.fillStyle='#ffeb3b'; } }
+}
+function drawLookTurret(t,R,L){   // turret points right; barrel from 0 to ~R*1.65
+  ctx.strokeStyle='#000a'; ctx.lineWidth=1.5; const g=L.gun;
+  const barrel=(y,len,w,c)=>{ ctx.fillStyle=c||'#222'; ctx.fillRect(R*.3,y-w/2,len,w); };
+  if(g==='long'||g==='long2'){ barrel(0,R*(g==='long2'?2.3:1.95),R*.26,'#1c1c1c'); ctx.fillStyle='#000'; ctx.fillRect(R*(g==='long2'?2.1:1.8),-R*.18,R*.18,R*.36); }
+  if(g==='fat'){ barrel(0,R*1.5,R*.6,'#2a2a2a'); ctx.fillStyle='#111'; ctx.fillRect(R*1.75,-R*.4,R*.1,R*.8); ctx.fillStyle='#555'; ctx.fillRect(R*1.7,-R*.45,R*.15,R*.9); }
+  if(g==='twin'){ barrel(-R*.22,R*1.75,R*.2); barrel(R*.22,R*1.75,R*.2); }
+  if(g==='gatling'){ for(const y of [-.24,0,.24]) barrel(y*R,R*1.65,R*.14,'#333'); ctx.fillStyle='#777'; ctx.fillRect(R*1.2,-R*.34,R*.12,R*.68); ctx.fillRect(R*1.6,-R*.34,R*.1,R*.68); }
+  if(g==='cannon'){ ctx.fillStyle='#222'; ctx.beginPath(); ctx.moveTo(R*.3,-R*.3); ctx.lineTo(R*2,-R*.18); ctx.lineTo(R*2,R*.18); ctx.lineTo(R*.3,R*.3); ctx.closePath(); ctx.fill(); }
+  if(g==='triple'){ barrel(0,R*2,R*.24,'#1c1c1c'); for(const sg of [-1,1]){ ctx.save(); ctx.rotate(sg*.35); barrel(0,R*1.5,R*.16,'#2a2a2a'); ctx.restore(); } }
+  if(L.scope){ ctx.fillStyle='#223'; ctx.fillRect(R*.5,-R*.5,R*.9,R*.16); ctx.fillStyle='#6cf'; ctx.beginPath(); ctx.arc(R*1.4,-R*.42,R*.1,0,TAU); ctx.fill(); }
+  if(L.missile){ ctx.fillStyle='#bbb'; ctx.fillRect(R*.2,R*.42,R*.9,R*.18); ctx.fillStyle='#e33'; ctx.beginPath(); ctx.moveTo(R*1.1,R*.42); ctx.lineTo(R*1.35,R*.51); ctx.lineTo(R*1.1,R*.6); ctx.fill(); }
+  }
+function drawLookTop(t,R,L){
+  ctx.strokeStyle='#000a'; ctx.lineWidth=1.5;
+  if(L.star){ ctx.fillStyle='#ffe066'; ctx.beginPath(); for(let i=0;i<10;i++){ const r=i%2?R*.1:R*.26, a=-Math.PI/2+i*Math.PI/5; ctx.lineTo(Math.cos(a)*r,Math.sin(a)*r); } ctx.closePath(); ctx.fill(); }
+  if(L.crown){ ctx.fillStyle='#ffcc00'; ctx.strokeStyle='#000a'; ctx.beginPath(); ctx.moveTo(-R*.42,R*.3); ctx.lineTo(-R*.42,-R*.32); ctx.lineTo(-R*.22,-R*.1); ctx.lineTo(0,-R*.4); ctx.lineTo(R*.22,-R*.1); ctx.lineTo(R*.42,-R*.32); ctx.lineTo(R*.42,R*.3); ctx.closePath(); ctx.fill(); ctx.stroke(); }
+}
 const statLine=(s,perks)=>'🛡️ health ×'+s.hp+' · ⚔️ damage ×'+s.dmg+' · 💨 speed ×'+s.spd+' · 🔥 shooting '+(s.rate<=1?'×'+(Math.round(10/s.rate)/10)+' faster':'×'+(Math.round(10*s.rate)/10)+' slower')+(perks&&perks.length?' · ✨ '+perks.map(id=>(ABILITIES.find(a=>a.id===id)||{name:id}).name).join(', '):'');
 function applyCodeTank(you){ const st=my.stats; if(!st) return; const k=st.s;
   you.hp=you.hpMax=Math.round(you.hp*k.hp); you.dmgMult*=k.dmg; you.spd*=Math.min(1.9,k.spd); you.coolBase=Math.max(8,Math.round(you.coolBase*k.rate)); you.aimRate=Math.min(.3,you.aimRate*k.aim);
-  for(const id of (st.perks||[])) you.perks.add(id); }
+  for(const id of (st.perks||[])) you.perks.add(id);
+  you.look=LOOKS[st.look]||null; }
 function tankCode(){
   const ci=Math.max(0,COLORS.indexOf(my.color));
   const body=cleanRules(my.rules).map(r=>B36[CONDS.findIndex(c=>c[0]===r[0])]+B36[ACTS.findIndex(a=>a[0]===r[1])]+B36[ANDS.findIndex(a=>a[0]===r[2])]).join('');
@@ -1792,7 +1850,7 @@ document.getElementById('playCode').onclick=()=>{
   const opp=readTankCode(raw);
   const sp=SPECIAL_TANKS[raw.toUpperCase().replace(/[^A-Z0-9]/g,'')];
   let got=null;
-  if(sp) got={name:sp.name, color:sp.color, rules:BR[sp.brain].map(r=>r.slice()), stats:{s:sp.s, perks:sp.perks||[], tier:sp.tier}};
+  if(sp) got={name:sp.name, color:sp.color, rules:BR[sp.brain].map(r=>r.slice()), stats:{s:sp.s, perks:sp.perks||[], tier:sp.tier, look:raw.toUpperCase().replace(/[^A-Z0-9]/g,'')}};
   else if(opp){ const rules=readShortCode.last && /TK-/i.test(raw) ? readShortCode.last : null; got={name:opp.name, color:COLORS.includes(opp.color)?opp.color:COLORS[0], rules:(rules||[]).map(r=>r.slice())}; if(!got.rules.length) got=null; }
   if(!got){ err.textContent='That tank code doesn\'t work. Check the spelling, or paste the whole code starting with TK-.'; return; }
   if(!my.stats) store.set('tank-mytank-backup',{name:my.name,color:my.color,rules:my.rules.map(r=>r.slice())});   // keep your own tank so you can go back
