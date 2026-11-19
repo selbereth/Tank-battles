@@ -152,7 +152,7 @@ button{touch-action:manipulation}
 .tourbtn:disabled,.shopitem button:disabled{opacity:.45;cursor:not-allowed}
 .cup{width:22px;height:22px;border-radius:50% 50% 40% 40%}
 .tstore .shopitem{flex-wrap:wrap}.tstore .tsrow{display:flex;gap:8px;align-items:center;width:100%}.tstore small{display:block}.tstore .tsstats{font-size:11px;opacity:.85}.tstore .tsown{outline:2px solid #3fbf4f}
-.wheelbox{display:flex;gap:16px;align-items:center;flex-wrap:wrap;margin:6px 0 14px}.wheelwrap{position:relative;width:170px;height:176px;padding-top:6px}.wpoint{position:absolute;top:-8px;left:50%;transform:translateX(-50%);font-size:22px;z-index:2;color:#c62828}.wheel{width:164px;height:164px;border-radius:50%;border:4px solid #222;margin:6px auto 0;transition:transform 4.2s cubic-bezier(.12,.6,.1,1);background:conic-gradient(#9aa0a6 0 205deg,#2b6cd9 205deg 295deg,#19a974 295deg 355deg,#e0402c 355deg 357deg,#ffcc00 357deg 360deg)}.wside{flex:1;min-width:200px}
+.wheelbox{display:flex;gap:16px;align-items:center;flex-wrap:wrap;margin:6px 0 14px}.wheelwrap{position:relative;width:170px;height:176px;padding-top:6px}.wpoint{position:absolute;top:-8px;left:50%;transform:translateX(-50%);font-size:22px;z-index:2;color:#c62828}.wheel{width:164px;height:164px;border-radius:50%;border:4px solid #222;margin:6px auto 0;transition:transform 4.2s cubic-bezier(.12,.6,.1,1);background:conic-gradient(#9aa0a6 0 205deg,#2b6cd9 205deg 295deg,#19a974 295deg 356deg,#8e44ad 356deg 360deg)}.wside{flex:1;min-width:200px}
 .shop{display:grid;grid-template-columns:repeat(auto-fill,minmax(230px,1fr));gap:8px}
 .shopitem{display:flex;align-items:center;gap:10px;background:var(--panel);border:1.5px solid var(--line);border-radius:8px;padding:8px 10px}
 .si-text{flex:1;min-width:0;display:flex;flex-direction:column}
@@ -401,7 +401,7 @@ button{touch-action:manipulation}
   <h2 id="secTankStore">Mystery tank store</h2>
   <p class="note">Spin the wheel for 1,000 points to win a mystery tank (with a teeny tiny chance of an overpowered one!), or buy one for its price. You don't see which tank it is until you own it! You keep tanks forever and can switch any time. You can also get them with a code on the Tank codes screen.</p>
   <div class="wheelbox"><div class="wheelwrap"><div class="wpoint">▼</div><div class="wheel" id="wheel"></div></div>
-    <div class="wside"><button type="button" class="primary" id="wheelBtn">🎡 Spin the wheel! (1,000 pts)</button><p class="note" id="wheelKey"><b style="color:#7d838a">■</b> Common &nbsp;<b style="color:#2b6cd9">■</b> Rare &nbsp;<b style="color:#19a974">■</b> Epic &nbsp;<b style="color:#e0a800">▮</b> the tiny gold line = Overpowered!</p><p class="note" id="wheelMsg" aria-live="polite"></p></div></div>
+    <div class="wside"><button type="button" class="primary" id="wheelBtn">🎡 Spin the wheel! (1,000 pts)</button><p class="note" id="wheelKey"><b style="color:#7d838a">■</b> Common &nbsp;<b style="color:#2b6cd9">■</b> Rare &nbsp;<b style="color:#19a974">■</b> Epic &nbsp;<b style="color:#8e44ad">▮</b> the tiny purple slice = Overpowered!</p><p class="note" id="wheelMsg" aria-live="polite"></p></div></div>
   <div class="shop tstore" id="tankStore"></div>
 
 </section>
@@ -1912,7 +1912,7 @@ function spinWheel(){
   prog.points-=WHEEL_COST; saveProg(); renderProg();
   let r=Math.random()*left.reduce((a,k)=>a+WHEEL_W[SPECIAL_TANKS[k].tier],0), win=left[left.length-1];
   for(const k of left){ r-=WHEEL_W[SPECIAL_TANKS[k].tier]; if(r<=0){ win=k; break; } }
-  const tier=SPECIAL_TANKS[win].tier, slices={common:[0,205],rare:[205,295],epic:[295,355],super:[355,357],ultra:[357,360],omega:[357,360]}[tier];
+  const tier=SPECIAL_TANKS[win].tier, slices={common:[0,205],rare:[205,295],epic:[295,356],super:[356,360],ultra:[356,360],omega:[356,360]}[tier];
   const mg=Math.min(3,(slices[1]-slices[0])/4), centre=slices[0]+mg+Math.random()*(slices[1]-slices[0]-2*mg);   // land somewhere inside the right colour
   wheelRot=(Math.floor(wheelRot/360)+6)*360+(360-centre);
   wheelBusy=true; btn.disabled=true; msg.textContent='Spinning...';
