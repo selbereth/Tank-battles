@@ -151,6 +151,7 @@ button{touch-action:manipulation}
 .tourbtn small.won{color:var(--accent);font-weight:700}
 .tourbtn:disabled,.shopitem button:disabled{opacity:.45;cursor:not-allowed}
 .cup{width:22px;height:22px;border-radius:50% 50% 40% 40%}
+.tstore .shopitem{flex-wrap:wrap}.tstore .tsrow{display:flex;gap:8px;align-items:center;width:100%}.tstore small{display:block}.tstore .tsstats{font-size:11px;opacity:.85}.tstore .tsown{outline:2px solid #3fbf4f}
 .shop{display:grid;grid-template-columns:repeat(auto-fill,minmax(230px,1fr));gap:8px}
 .shopitem{display:flex;align-items:center;gap:10px;background:var(--panel);border:1.5px solid var(--line);border-radius:8px;padding:8px 10px}
 .si-text{flex:1;min-width:0;display:flex;flex-direction:column}
@@ -396,6 +397,9 @@ button{touch-action:manipulation}
   <h2 id="secShop">Upgrade shop</h2>
   <p class="note">Buy an ability your tank keeps for the whole battle, for the next few battles. It starts with your next battle. Beat level 301 to unlock Super tank here!</p>
   <div class="shop" id="shop"></div>
+  <h2 id="secTankStore">Tank store</h2>
+  <p class="note">Buy a special tank with your points. You keep it forever, and you can switch to it any time. You can also get these tanks by typing their code on the Tank codes screen!</p>
+  <div class="shop tstore" id="tankStore"></div>
 
 </section>
 <section class="screen" data-screen="perm" hidden>
@@ -909,6 +913,7 @@ function renderProg(){
     btn.disabled = PL<need; btn.classList.remove('sure'); rbSure=false;
     btn.textContent = PL<need ? 'Rebirth (needs player level '+need.toLocaleString()+')' : 'Rebirth! (next: points ×'+(pointsMult()+.1).toFixed(1)+')'; }
   document.getElementById('plvNum').style.fontSize = PL>=1000 ? '20px' : '';
+  try{ renderTankStore(); }catch(e){}
   document.querySelectorAll('.ptsMirror').forEach(e=>e.textContent=prog.points.toLocaleString());
   document.getElementById('ptsNum').textContent=prog.points.toLocaleString(); document.getElementById('ptsNum').style.fontSize = prog.points>=1e6 ? '18px' : '';
   document.getElementById('xpFill').style.width = nxt ? (100*(prog.xp-cur)/(nxt-cur))+'%' : '100%';
@@ -1856,13 +1861,35 @@ document.getElementById('playCode').onclick=()=>{
   if(!got){ err.textContent='That tank code doesn\'t work. Check the spelling, or paste the whole code starting with TK-.'; return; }
   if(!my.stats) store.set('tank-mytank-backup',{name:my.name,color:my.color,rules:my.rules.map(r=>r.slice())});   // keep your own tank so you can go back
   my={name:got.name, color:got.color, rules:got.rules}; if(got.stats) my.stats=got.stats; saveMy();
-  chosen=MY_INDEX; store.set('tank-choice',chosen); nameIn.value=my.name; renderRules(); renderColors(); buildCards(); tcInfo();
+  if(sp){ const k=tankKey(sp), o=ownedTanks(); if(!o.includes(k)) store.set('tank-owned',[...o,k]); }
+  chosen=MY_INDEX; store.set('tank-choice',chosen); nameIn.value=my.name; renderRules(); renderColors(); buildCards(); tcInfo(); renderTankStore();
   const T=got.stats&&got.stats.tier; err.textContent=(T&&T!=='common'?TIERS_TXT[T]+' TANK! ':'')+'You got '+my.name+'! It\'s your tank now. Starts next battle.'; document.getElementById('pasteCode').value='';
 };
+const TIER_PRICE={common:300,rare:1500,epic:4000,super:15000,ultra:60000,omega:250000};
+const tankKey=sp=>Object.keys(SPECIAL_TANKS).find(k=>SPECIAL_TANKS[k]===sp);
+const ownedTanks=()=>store.get('tank-owned',[]);
+function equipTank(key){   // put a code tank on as your tank (your own tank is saved so you can go back)
+  const sp=SPECIAL_TANKS[key]; if(!sp) return;
+  if(!my.stats) store.set('tank-mytank-backup',{name:my.name,color:my.color,rules:my.rules.map(r=>r.slice())});
+  my={name:sp.name, color:sp.color, rules:BR[sp.brain].map(r=>r.slice()), stats:{s:sp.s, perks:sp.perks||[], tier:sp.tier, look:key}}; saveMy();
+  chosen=MY_INDEX; store.set('tank-choice',chosen); nameIn.value=my.name; renderRules(); renderColors(); buildCards(); tcInfo(); }
+function renderTankStore(){
+  const box=document.getElementById('tankStore'); if(!box) return; box.innerHTML='';
+  const own=ownedTanks();
+  for(const key of Object.keys(SPECIAL_TANKS)){ const sp=SPECIAL_TANKS[key], price=TIER_PRICE[sp.tier], has=own.includes(key), using=my.stats&&my.stats.look===key;
+    const row=document.createElement('div'); row.className='shopitem'+(using?' tsown':'');
+    row.innerHTML='<div class="tsrow"><span class="chip" style="background:'+sp.color+'">'+(TIERS_TXT[sp.tier]||'').slice(0,3).toUpperCase()+'</span><span class="si-text"><b>'+esc(sp.name)+'</b> <small>'+esc(sp.desc)+'</small></span></div><div class="tsstats">'+esc(statLine(sp.s,sp.perks))+'</div>';
+    const btn=document.createElement('button'); btn.type='button';
+    if(has){ btn.textContent=using?'Using it':'Use this tank'; btn.disabled=!!using; btn.onclick=()=>{ equipTank(key); renderTankStore(); }; }
+    else { btn.textContent=price.toLocaleString()+' pts'; btn.disabled=prog.points<price; btn.setAttribute('aria-label','Buy '+sp.name+' for '+price+' points');
+      btn.onclick=()=>{ if(prog.points<price) return; prog.points-=price; store.set('tank-owned',[...ownedTanks(),key]); saveProg(); renderProg(); equipTank(key); renderTankStore(); }; }
+    row.appendChild(btn); box.appendChild(row); }
+}
+renderTankStore();
 function tcInfo(){ const el=document.getElementById('tcInfo'), back=document.getElementById('tcBack'); if(!el) return;
   const b=store.get('tank-mytank-backup',null); back.hidden=!(my.stats && b);
   el.textContent = my.stats ? '🎟️ Your tank: '+my.name+' ('+(TIERS_TXT[my.stats.tier]||'Common')+'). '+statLine(my.stats.s,my.stats.perks) : 'Your tank is your own tank. Type a code to get a special tank!'; }
-document.getElementById('tcBack').onclick=()=>{ const b=store.get('tank-mytank-backup',null); if(!b) return; my={name:b.name,color:b.color,rules:b.rules.map(r=>r.slice())}; saveMy(); localStorage.removeItem('tank-mytank-backup'); nameIn.value=my.name; renderRules(); renderColors(); buildCards(); tcInfo(); document.getElementById('codeErr').textContent='You\'re back to your own tank.'; };
+document.getElementById('tcBack').onclick=()=>{ const b=store.get('tank-mytank-backup',null); if(!b) return; my={name:b.name,color:b.color,rules:b.rules.map(r=>r.slice())}; saveMy(); localStorage.removeItem('tank-mytank-backup'); nameIn.value=my.name; renderRules(); renderColors(); buildCards(); tcInfo(); renderTankStore(); document.getElementById('codeErr').textContent='You\'re back to your own tank.'; };
 tcInfo();
 document.getElementById('pasteCode').addEventListener('keydown',e=>{ if(e.key==='Enter') document.getElementById('playCode').click(); });
 
@@ -2216,7 +2243,7 @@ document.getElementById('netLeave').onclick=()=>{ netStatus(''); netReset(); };
 (()=>{ if(window.claude && window.claude.use) document.getElementById('netWhere').hidden=false; })();
 
 // ---------- Account: username + password, and save codes that bring your stuff back anywhere ----------
-const SAVE_KEYS=['tank-prog','tank-best','tank-level','tank-choice','tank-custom','tank-cust','tank-auto','tank-automove','tank-tutorial','tank-super','tank-super-owned','tank-beat301','tank-mytank-backup','tank-genmaps','tank-user'];
+const SAVE_KEYS=['tank-prog','tank-best','tank-level','tank-choice','tank-custom','tank-cust','tank-auto','tank-automove','tank-tutorial','tank-super','tank-super-owned','tank-beat301','tank-mytank-backup','tank-owned','tank-genmaps','tank-user'];
 const acMsg=t=>{ document.getElementById('acMsg').textContent=t; };
 const acB64={ enc:u8=>{ let s=''; for(let i=0;i<u8.length;i+=8192) s+=String.fromCharCode.apply(null,u8.subarray(i,i+8192)); return btoa(s).replace(/\+/g,'-').replace(/\//g,'_').replace(/=+$/,''); },
   dec:t=>{ const s=atob(t.replace(/-/g,'+').replace(/_/g,'/')); const u=new Uint8Array(s.length); for(let i=0;i<s.length;i++) u[i]=s.charCodeAt(i); return u; } };
