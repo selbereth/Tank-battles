@@ -1,0 +1,2237 @@
+<title>Tank Battles 1</title>
+<meta name="claude:viewport-fit-sides" content="cover">
+<link rel="preconnect" href="https://fonts.googleapis.com">
+<link rel="stylesheet" href="https://fonts.googleapis.com/css2?family=Black+Ops+One&family=Inter:wght@400;600;700&family=JetBrains+Mono:wght@500&display=swap">
+<style>
+/* Layout: one column. Header with level, battlefield canvas, control strip, "pick your tank" cards, enemy list, power-up legend. */
+:root{
+  --bg:#eef0e6; --panel:#ffffff; --fg:#22261c; --muted:#5f6852; --line:#d3d8c6;
+  --ground:#c9c19a; --ground-grid:#bdb48b; --wall:#6d6250; --wall-top:#857862;
+  --accent:#4f6b2c; --accent-fg:#ffffff; --hp-bg:#00000022;
+  --display:"Black Ops One","Impact","Arial Black",sans-serif;
+  --body:"Inter",system-ui,-apple-system,"Segoe UI",sans-serif;
+  --mono:"JetBrains Mono",ui-monospace,Menlo,Consolas,monospace;
+}
+@media (prefers-color-scheme:dark){:root:not([data-theme="light"]){
+  --bg:#15180f; --panel:#1f2318; --fg:#e7ead9; --muted:#a3ab90; --line:#343a2a;
+  --ground:#3b3a2a; --ground-grid:#45432f; --wall:#706650; --wall-top:#8c7f63;
+  --accent:#9cc25a; --accent-fg:#15180f; --hp-bg:#ffffff22; color-scheme:dark}}
+:root[data-theme="dark"]{
+  --bg:#15180f; --panel:#1f2318; --fg:#e7ead9; --muted:#a3ab90; --line:#343a2a;
+  --ground:#3b3a2a; --ground-grid:#45432f; --wall:#706650; --wall-top:#8c7f63;
+  --accent:#9cc25a; --accent-fg:#15180f; --hp-bg:#ffffff22; color-scheme:dark}
+body{background:var(--bg);color:var(--fg);font-family:var(--body);font-size:15px;line-height:1.5}
+.wrap{max-width:1000px;margin:0 auto;padding-block:20px 40px;padding-left:max(16px,env(safe-area-inset-left,0px));padding-right:max(16px,env(safe-area-inset-right,0px));display:flex;flex-direction:column;gap:16px}
+header{display:flex;flex-wrap:wrap;align-items:baseline;justify-content:space-between;gap:8px 16px}
+h1{font-family:var(--display);font-weight:400;font-size:clamp(28px,6vw,44px);letter-spacing:.02em;margin:0;line-height:1;text-wrap:balance}
+.lvl{display:flex;gap:14px;align-items:baseline;font-family:var(--mono);font-size:13px;letter-spacing:.06em;text-transform:uppercase;color:var(--muted);font-variant-numeric:tabular-nums}
+.lvl b{font-family:var(--display);font-weight:400;font-size:26px;color:var(--fg);letter-spacing:.03em;text-transform:none}
+h2{font-family:var(--display);font-weight:400;font-size:20px;letter-spacing:.03em;margin:4px 0 0}
+.field{position:relative;border-radius:10px;overflow:hidden;border:2px solid var(--line);background:var(--ground)}
+canvas{display:block;width:100%;height:auto;max-width:100%;touch-action:none}
+.banner{position:absolute;inset:0;display:flex;flex-direction:column;align-items:center;justify-content:center;gap:10px;background:#000a;color:#fff;text-align:center;padding:16px}
+.banner[hidden]{display:none}
+.banner b{font-family:var(--display);font-weight:400;font-size:clamp(26px,6vw,52px);letter-spacing:.03em;line-height:1.1}
+.banner span{font-size:15px;max-width:40ch;opacity:.9}
+.banner #countdown{font:400 22px var(--display);letter-spacing:.04em;opacity:1}
+.banner #countdown:empty,.banner #stopAuto[hidden]{display:none}
+.banner button.ghost{background:transparent;color:#fff;border-color:#fff8;padding:6px 12px;font-size:13px}
+.controls{display:flex;flex-wrap:wrap;gap:8px;align-items:center}
+button{font:600 14px var(--body);border-radius:8px;border:1.5px solid var(--line);background:var(--panel);color:var(--fg);padding:9px 14px;cursor:pointer}
+button:hover{border-color:var(--accent)}
+button:focus-visible{outline:3px solid var(--accent);outline-offset:2px}
+button.primary{background:var(--accent);color:var(--accent-fg);border-color:var(--accent)}
+button[aria-pressed="true"]{background:var(--fg);color:var(--bg);border-color:var(--fg)}
+.speed{display:flex;gap:4px;margin-left:auto;align-items:center}
+.speed span{color:var(--muted);font-size:13px;margin-right:4px}
+.tanks{display:grid;grid-template-columns:repeat(auto-fit,minmax(210px,1fr));gap:12px}
+.card{background:var(--panel);border:1.5px solid var(--line);border-radius:10px;padding:12px 14px;display:flex;flex-direction:column;gap:8px;min-width:0;cursor:pointer;text-align:left;font:inherit;color:inherit}
+.card[aria-pressed="true"]{background:var(--panel);color:var(--fg);border-color:var(--accent);box-shadow:0 0 0 2px var(--accent)}
+.card-top{display:flex;align-items:center;gap:10px}
+.swatch{width:18px;height:18px;border-radius:4px;flex:none}
+.name{font-family:var(--display);font-size:20px;letter-spacing:.03em;line-height:1}
+.tag{margin-left:auto;font:700 11px var(--body);letter-spacing:.06em;text-transform:uppercase;color:var(--accent)}
+.hp{height:8px;border-radius:4px;background:var(--hp-bg);overflow:hidden}
+.hp i{display:block;height:100%;width:100%;transition:width .15s}
+.rules{margin:0;padding:0;list-style:none;font-family:var(--mono);font-size:12px;color:var(--muted);display:flex;flex-direction:column;gap:3px}
+.rules li b{color:var(--fg);font-weight:500}
+.power{align-self:flex-start;font:700 12px var(--body);color:#fff;padding:2px 8px;border-radius:999px;letter-spacing:.02em}
+.power:empty{display:none}
+.maps{display:grid;grid-template-columns:repeat(auto-fit,minmax(140px,1fr));gap:8px}
+.mapbtn{display:flex;flex-direction:column;align-items:flex-start;gap:2px;padding:8px 12px;text-align:left}
+.mapbtn small{font:500 12px var(--mono);color:var(--muted);letter-spacing:.04em}
+.mapbtn .sw{width:100%;height:6px;border-radius:3px;margin-bottom:4px}
+.mapbtn[aria-current="true"]{border-color:var(--accent);box-shadow:0 0 0 2px var(--accent)}
+.mapbtn:disabled{opacity:.45;cursor:not-allowed}
+.aimaps h3{margin:4px 0 8px;font-size:15px}.aimaps h3 small{font-weight:500;color:var(--muted);margin-left:6px}
+.aimaps[hidden]{display:none}
+.sub3{margin:14px 0 4px;font-size:16px}
+.rebirth{display:flex;flex-wrap:wrap;align-items:center;gap:10px;background:var(--panel);border:1.5px solid var(--line);border-radius:10px;padding:10px 14px}
+.rb-info{display:flex;flex-direction:column}.rb-info small,#rbMsg{color:var(--muted);font-size:12px}
+.rbbtn{background:linear-gradient(90deg,#8e44ad,#e0402c);color:#fff;border-color:transparent}.rbbtn:disabled{opacity:.45;cursor:not-allowed}
+.rbbtn.sure{background:#c62828}
+.net{display:flex;flex-direction:column;gap:6px}.net p{margin:4px 0}.net [hidden]{display:none}
+.net textarea,.net input{font:500 12px var(--mono);border-radius:8px;border:1.5px solid var(--line);background:var(--panel);color:var(--fg);padding:8px 10px;box-sizing:border-box;word-break:break-all}
+.net textarea{width:100%}
+.bigcode{font:400 54px var(--display);letter-spacing:.18em;color:var(--accent);background:var(--panel);border:3px dashed #ffd23f;border-radius:12px;padding:6px 18px;display:inline-block}
+.net input.qcode{font:400 30px var(--display);letter-spacing:.2em;max-width:200px;flex:none;text-align:center}
+.net details{margin-top:6px}
+.bigcode.small{font-size:30px;padding:2px 12px}.bigcode[hidden]{display:none}.net summary{cursor:pointer;color:var(--muted);font-size:13px}.net input{flex:1;min-width:180px}
+.duokeys{display:grid;grid-template-columns:repeat(auto-fit,minmax(220px,1fr));gap:8px;margin-bottom:8px}.duokeys>div{background:var(--panel);border:1.5px solid var(--line);border-radius:8px;padding:8px 12px;font-size:14px;line-height:1.8}
+kbd{font:600 12px var(--mono);border:1.5px solid var(--line);border-bottom-width:3px;border-radius:5px;padding:1px 6px;background:var(--bg)}
+.tcodes{display:flex;flex-direction:column;gap:8px}
+.tcodes textarea,.tcodes input{font:500 13px var(--mono);border-radius:8px;border:1.5px solid var(--line);background:var(--panel);color:var(--fg);padding:8px 10px;width:100%;box-sizing:border-box;word-break:break-all}
+.tcodes input{flex:1;min-width:180px;width:auto}.tcodes textarea[hidden]{display:none}
+.mousehint{margin:0;padding:8px 12px;border-radius:8px;background:var(--panel);border:1.5px dashed var(--accent);font-size:14px}.mousehint[hidden]{display:none}
+.lockbox{margin-top:14px;padding-top:12px;border-top:1.5px dashed var(--line)}.lockbox[hidden]{display:none}.lockbox h3{margin:0 0 4px}
+button.danger{background:#c62828;color:#fff;border-color:#c62828}
+.warnbox{background:#fff3c4;color:#5a4300;border:2px solid #ffd23f;border-radius:10px;padding:10px 12px;max-width:none}
+.acct{display:flex;flex-direction:column;gap:8px;background:var(--panel);border:1.5px solid var(--line);border-radius:10px;padding:12px 14px}.acct[hidden]{display:none}.acct h3{margin:0}
+.acct input,.acct textarea{font:500 14px var(--mono);border-radius:8px;border:1.5px solid var(--line);background:var(--bg);color:var(--fg);padding:8px 10px}.acct input{flex:1;min-width:140px}.acct textarea{width:100%;box-sizing:border-box}.acct textarea[hidden],.acct [hidden]{display:none}.acwho{margin:0;display:flex;align-items:center;gap:10px;flex-wrap:wrap}
+.screen{display:flex;flex-direction:column;gap:16px}.screen[hidden]{display:none}
+.scr-top{display:flex;align-items:center;gap:10px;flex-wrap:wrap}.backbtn{font-weight:700}.scr-hint{color:var(--muted);font-size:13px}.scr-pts{margin:0;font-weight:600}
+.invite{position:fixed;inset:0;z-index:95;display:grid;place-items:center;background:rgba(0,0,0,.6);padding:16px}.invite[hidden]{display:none}
+.inv-box{position:relative;background:var(--panel);color:var(--fg);border:4px solid #ffd23f;border-radius:16px;padding:20px 22px;max-width:440px;width:100%;text-align:center;box-shadow:0 12px 40px rgba(0,0,0,.5);animation:invPop .35s ease-out}
+@keyframes invPop{from{transform:scale(.7);opacity:0}to{transform:scale(1);opacity:1}}
+.inv-box h2{margin:4px 0;font-size:30px;color:#e0402c;letter-spacing:.05em}.inv-icon{font-size:48px}.inv-box p{margin:6px 0;font-size:17px}.inv-what{color:var(--muted);font-size:14px!important}
+.inv-btns{justify-content:center;margin-top:10px}.inv-box textarea{width:100%;box-sizing:border-box;font:500 12px var(--mono);border-radius:8px;border:1.5px solid var(--line);background:var(--bg);color:var(--fg);padding:8px;word-break:break-all}
+.inv-x{position:absolute;top:8px;right:8px;padding:4px 9px}.inv-msg{color:var(--muted);font-size:13px!important}.inv-box [hidden]{display:none}
+.menu{position:fixed;inset:0;z-index:89;overflow:auto;background:radial-gradient(circle at 50% 0%,#5b7a33 0%,#2c3a1a 55%,#161d0d 100%);color:#fff;display:flex;justify-content:center;padding:24px 16px}.menu[hidden]{display:none}
+.menu-in{width:100%;max-width:640px;display:flex;flex-direction:column;gap:14px;align-items:stretch;text-align:center;margin:auto 0}
+.menu h1{font:400 clamp(40px,11vw,76px)/1 var(--display);letter-spacing:.03em;margin:0;color:#ffd23f;text-shadow:0 4px 0 #6b4a00,0 8px 18px rgba(0,0,0,.5)}
+.menu .msub{margin:0;color:#e3ecd3;font-size:16px}
+.menu .mstats{display:flex;gap:10px;justify-content:center;flex-wrap:wrap;font:600 14px var(--mono);color:#e3ecd3}
+.menu .mstats span{background:rgba(0,0,0,.3);padding:4px 10px;border-radius:99px}
+.menu .mplay{font:400 30px var(--display);letter-spacing:.05em;padding:16px;border-radius:14px;border:3px solid #ffd23f;background:#ffd23f;color:#2c3a1a;cursor:pointer;box-shadow:0 6px 0 #a07800}
+.menu .mplay:hover{filter:brightness(1.06)}.menu .mplay:active{transform:translateY(3px);box-shadow:0 3px 0 #a07800}
+.macct{background:rgba(0,0,0,.3);color:#fff;border:2px solid rgba(255,255,255,.35);border-radius:99px;padding:6px 16px;font:600 15px var(--body);cursor:pointer}.macct:hover{border-color:#ffd23f}.macct small{color:#cfd9bf;font-weight:500}
+.mgrid{display:grid;grid-template-columns:repeat(auto-fill,minmax(150px,1fr));gap:10px}
+.mgrid button{display:flex;align-items:center;gap:10px;text-align:left;padding:12px 14px;border-radius:12px;border:2px solid rgba(255,255,255,.25);background:rgba(0,0,0,.28);color:#fff;font:600 16px var(--body);cursor:pointer}
+.mgrid button:hover{background:rgba(0,0,0,.45);border-color:#ffd23f}
+.mgrid .mi{font-size:24px;line-height:1}
+.tut{position:fixed;inset:0;z-index:90}.tut[hidden]{display:none}
+.tut-spot{position:fixed;border-radius:12px;box-shadow:0 0 0 4px #ffd23f,0 0 0 9999px rgba(0,0,0,.6);pointer-events:none}
+.tut-spot.none{width:0;height:0;left:50%;top:50%;box-shadow:0 0 0 9999px rgba(0,0,0,.6)}
+.tut-arrow{position:fixed;width:44px;height:58px;fill:#ffd23f;stroke:#000;stroke-width:2;filter:drop-shadow(0 2px 3px rgba(0,0,0,.5));pointer-events:none;animation:tutBob .8s ease-in-out infinite alternate}
+.tut-arrow.down{transform:rotate(180deg)}.tut-arrow[hidden]{display:none}
+@keyframes tutBob{from{translate:0 0}to{translate:0 10px}}
+.tut-arrow.down{animation-name:tutBobD}@keyframes tutBobD{from{translate:0 0}to{translate:0 -10px}}
+.tut-box{position:fixed;left:16px;right:16px;max-width:420px;margin:0 auto;background:var(--panel);color:var(--fg);border:3px solid #ffd23f;border-radius:14px;padding:14px 16px;box-shadow:0 10px 30px rgba(0,0,0,.4)}
+.tut-box small{font:600 12px var(--mono);color:var(--muted)}.tut-box p{font-size:17px;line-height:1.4;margin:6px 0 12px}
+.tut-btns{display:flex;gap:8px;align-items:center;flex-wrap:wrap}.tut-btns span{flex:1}
+.lockscreen{position:fixed;inset:0;z-index:100;display:grid;place-items:center;background:#000;color:#fff;text-align:center;padding:16px}
+.lockscreen.white{background:#fff;color:#000}
+.lockscreen[hidden]{display:none}.lockscreen h2{font-size:clamp(30px,8vw,56px);letter-spacing:.06em;margin:8px 0;color:#e53935}.lockicon{font-size:64px}
+.lockwhy{font-size:18px;margin:0 0 14px}.lockest{font:700 22px var(--mono);margin:0}
+.lockopts{display:flex;flex-wrap:wrap;gap:10px;margin:0 0 10px}.lockopts label{display:flex;gap:6px;align-items:center;font-weight:600}
+.lockopts select{font:600 14px var(--body);border-radius:8px;border:1.5px solid var(--line);background:var(--panel);color:var(--fg);padding:6px 8px}
+.pick{display:flex;flex-wrap:wrap;gap:8px;align-items:center}.pick label{font-weight:700}.pick input{font:600 14px var(--body);border-radius:8px;border:1.5px solid var(--line);background:var(--panel);color:var(--fg);padding:8px 10px;width:140px}.pick input[hidden]{display:none}
+.pick select{font:600 14px var(--body);border-radius:8px;border:1.5px solid var(--line);background:var(--panel);color:var(--fg);padding:8px 10px;max-width:100%}
+.prog{display:flex;align-items:center;gap:14px;background:var(--panel);border:1.5px solid var(--line);border-radius:10px;padding:12px 14px}
+.plv-num{font:400 30px var(--display);min-width:54px;padding:0 8px;box-sizing:border-box;height:54px;border-radius:27px;display:grid;place-items:center;background:var(--accent);color:var(--accent-fg);flex:none}
+.plv-mid{flex:1;min-width:0;display:flex;flex-direction:column;gap:4px}
+.plv-mid small,.pts small{color:var(--muted);font-size:12px}
+.xpbar{height:10px;border-radius:5px;background:var(--hp-bg);overflow:hidden}
+.xpbar i{display:block;height:100%;background:#7fe3ff}
+.pts{display:flex;flex-direction:column;align-items:flex-end}
+.pts b{font:400 26px var(--display);font-variant-numeric:tabular-nums}
+.tours{display:grid;grid-template-columns:repeat(auto-fit,minmax(190px,1fr));gap:8px}
+.tourbtn{display:flex;flex-direction:column;align-items:flex-start;gap:3px;text-align:left}
+.tourbtn small{color:var(--muted);font-size:12px;font-weight:500}
+.tourbtn small.won{color:var(--accent);font-weight:700}
+.tourbtn:disabled,.shopitem button:disabled{opacity:.45;cursor:not-allowed}
+.cup{width:22px;height:22px;border-radius:50% 50% 40% 40%}
+.shop{display:grid;grid-template-columns:repeat(auto-fill,minmax(230px,1fr));gap:8px}
+.shopitem{display:flex;align-items:center;gap:10px;background:var(--panel);border:1.5px solid var(--line);border-radius:8px;padding:8px 10px}
+.si-text{flex:1;min-width:0;display:flex;flex-direction:column}
+.si-text small{color:var(--muted);font-size:12px}
+.shopitem button{padding:6px 10px;white-space:nowrap}
+.custom{background:var(--panel);border:1.5px solid var(--line);border-radius:10px;padding:14px;display:flex;flex-direction:column;gap:10px;align-items:flex-start}
+.crow{display:flex;align-items:center;gap:10px;flex-wrap:wrap;font-weight:600}
+.crow>span{min-width:7.5em}
+.crow small{color:var(--muted);font-weight:500;font-size:12px}
+.crow select{font:600 14px var(--body);border-radius:8px;border:1.5px solid var(--line);background:var(--bg);color:var(--fg);padding:6px 8px}
+.crow output{font:400 20px var(--display);min-width:1.6em;font-variant-numeric:tabular-nums}
+.copts{display:flex;flex-wrap:wrap;gap:6px 16px}
+.cchk{display:flex;align-items:center;gap:6px;font-size:14px}
+.cchk.locked{color:var(--muted)}
+.codes{display:flex;flex-wrap:wrap;gap:8px;align-items:center}
+.codes input{font:400 20px var(--display);letter-spacing:.08em;text-transform:uppercase;padding:8px 12px;border-radius:8px;border:1.5px solid var(--line);background:var(--panel);color:var(--fg);width:14ch;max-width:100%}
+#codeMsg{font-weight:600}
+.admin{background:var(--panel);border:2px dashed var(--accent);border-radius:10px;padding:14px;display:flex;flex-direction:column;gap:10px}
+.admin[hidden]{display:none}
+.admin h2{margin:0}
+.admab{display:flex;flex-wrap:wrap;gap:6px}
+.admab button{display:flex;align-items:center;gap:6px;padding:6px 10px}
+.admab button[aria-pressed="true"]{background:var(--fg);color:var(--bg)}
+.admin select{font:600 14px var(--body);border-radius:8px;border:1.5px solid var(--line);background:var(--bg);color:var(--fg);padding:6px 8px}
+.enemies{display:flex;flex-wrap:wrap;gap:8px}
+.enemy{display:flex;align-items:center;gap:8px;background:var(--panel);border:1.5px solid var(--line);border-radius:8px;padding:6px 10px;font-size:13px;min-width:150px;flex:1 1 150px}
+.enemy.dead{opacity:.4;text-decoration:line-through}
+.enemy .hp{flex:1;min-width:40px}
+.legend{display:grid;grid-template-columns:repeat(auto-fill,minmax(220px,1fr));gap:6px 16px;margin:0;padding:0;list-style:none;font-size:14px}
+.legend li{display:flex;gap:8px;align-items:center}
+.chip{flex:none;width:38px;height:22px;border-radius:999px;color:#fff;font:700 10px var(--body);display:grid;place-items:center}
+.editor{background:var(--panel);border:1.5px solid var(--line);border-radius:10px;padding:14px;display:flex;flex-direction:column;gap:12px}
+.ed-top{display:flex;flex-wrap:wrap;gap:12px;align-items:center}
+.ed-name{display:flex;gap:8px;align-items:center;font-weight:600}
+.ed-name input{font:400 20px var(--display);letter-spacing:.03em;padding:6px 10px;border-radius:8px;border:1.5px solid var(--line);background:var(--bg);color:var(--fg);width:11ch}
+.colors{display:flex;gap:6px;flex-wrap:wrap}
+.colors button{width:30px;height:30px;padding:0;border-radius:50%;border:3px solid transparent}
+.colors button[aria-pressed="true"]{border-color:var(--fg);background-clip:padding-box}
+.rulelist{display:flex;flex-direction:column;gap:8px}
+.rule{display:flex;flex-wrap:wrap;gap:6px;align-items:center;padding:8px;border-radius:8px;background:var(--bg)}
+.num{font-family:var(--mono);color:var(--muted);min-width:1.6em;font-variant-numeric:tabular-nums}
+.blk{display:flex;align-items:center;gap:6px;border-radius:8px;padding:4px 5px 4px 10px;color:#fff;font:700 12px var(--body);letter-spacing:.06em}
+.blk.when{background:#d9822b}.blk.do{background:#3b82c4}.blk.and{background:#7a5ad1}
+.blk select{font:600 14px var(--body);border:0;border-radius:6px;padding:5px 4px;background:#fff;color:#222;max-width:62vw}
+.rule-tools{margin-left:auto;display:flex;gap:4px}
+.rule-tools button{padding:4px 10px}
+.ed-actions{display:flex;flex-wrap:wrap;gap:8px}
+.preset{display:flex;gap:6px;flex-wrap:wrap}
+.preset select{font:600 14px var(--body);border-radius:8px;border:1.5px solid var(--line);background:var(--panel);color:var(--fg);padding:8px}
+.copy{margin-top:12px;padding-top:12px;border-top:1px solid var(--line);color:var(--muted);font-size:13px}
+.note{color:var(--muted);font-size:14px;margin:0;max-width:65ch}
+@media (prefers-reduced-motion:reduce){.hp i{transition:none}}
+</style>
+
+<div class="wrap">
+  <div class="menu" id="menu" role="dialog" aria-modal="true" aria-labelledby="menuTitle">
+    <div class="menu-in">
+      <h1 id="menuTitle">Tank Battles 1</h1>
+      <p class="msub">Build a tank brain, then watch it battle!</p>
+      <div class="mstats"><span id="mLvl">Level 1</span><span id="mPl">Player level 1</span><span id="mPts">0 points</span></div>
+      <div><button type="button" class="macct" data-go="account">👤 <span id="mAcct">Log in or save</span> <small>(optional)</small></button></div>
+      <button type="button" class="mplay" id="mPlay">▶ PLAY</button>
+      <div class="mgrid">
+        <button type="button" data-go="levels"><span class="mi">🗺️</span>Pick a level</button>
+        <button type="button" data-go="build"><span class="mi">🔧</span>Build your tank</button>
+        <button type="button" data-go="shop"><span class="mi">🛒</span>Upgrade shop</button>
+        <button type="button" data-go="perm"><span class="mi">⭐</span>Permanent abilities</button>
+        <button type="button" data-go="tours"><span class="mi">🏆</span>Tournaments</button>
+        <button type="button" data-go="custom"><span class="mi">🎛️</span>Custom battle</button>
+        <button type="button" data-go="online"><span class="mi">🌐</span>Online battle</button>
+        <button type="button" data-go="duo"><span class="mi">👥</span>2 players</button>
+        <button type="button" data-go="tcodes"><span class="mi">🎟️</span>Tank codes</button>
+        <button type="button" data-go="codes"><span class="mi">🔑</span>Secret codes</button>
+        <button type="button" data-go="howto"><span class="mi">📖</span>How it works</button>
+        <button type="button" data-go="tutorial"><span class="mi">🎓</span>Tutorial</button>
+      </div>
+    </div>
+  </div>
+  <div class="tut" id="tut" hidden>
+    <div class="tut-spot" id="tutSpot"></div>
+    <svg class="tut-arrow" id="tutArrow" viewBox="0 0 48 64" aria-hidden="true"><path d="M24 2 L46 28 H32 V62 H16 V28 H2 Z"/></svg>
+    <div class="tut-box" id="tutBox" role="dialog" aria-modal="true" aria-labelledby="tutText">
+      <small id="tutStep"></small>
+      <p id="tutText"></p>
+      <div class="tut-btns"><button type="button" id="tutSkip" class="ghost">Skip tutorial</button><span></span><button type="button" id="tutBack">Back</button><button type="button" id="tutNext" class="primary">Next</button></div>
+    </div>
+  </div>
+  <div class="invite" id="invite" hidden role="dialog" aria-modal="true" aria-labelledby="invTitle">
+    <div class="inv-box">
+      <button type="button" class="inv-x" id="invClose" aria-label="Close">✕</button>
+      <div class="inv-icon" aria-hidden="true">🎮</div>
+      <h2 id="invTitle">INVITATION!</h2>
+      <p id="invWho"></p><p class="inv-what" id="invWhat"></p>
+      <div id="invStep1" class="ed-actions inv-btns"><button type="button" class="primary" id="invAccept">Accept and play!</button><button type="button" id="invNo">No thanks</button></div>
+      <div id="invStep2" hidden><p id="invBack"></p><textarea id="invCode" readonly rows="2" aria-label="Your reply code"></textarea><div class="ed-actions inv-btns"><button type="button" class="primary" id="invCopy">Copy reply code</button></div></div>
+      <p class="inv-msg" id="invMsg" aria-live="polite"></p>
+    </div>
+  </div>
+  <div class="lockscreen" id="lockScreen" hidden role="alert">
+    <div><div class="lockicon" aria-hidden="true">🔒</div><h2>LOCKDOWN MODE</h2><p class="lockwhy">Something is wrong. Tank Battles 1 is closed while it gets fixed.</p><p class="lockest" id="lockEst"></p></div>
+  </div>
+
+<section class="screen" data-screen="battle">
+  <header>
+    <h1>Tank Battles 1</h1>
+    <div class="lvl"><span id="mapName">Desert Base</span><span><b id="lvlNum">Level 1</b></span><span>Best <b id="bestNum">1</b></span></div>
+  </header>
+
+  <div class="controls">
+    <button id="menuBtn" type="button">☰ Menu</button>
+    <button class="primary" id="restartBtn" type="button">Start over at level 1</button>
+    <button id="pauseBtn" type="button" aria-pressed="false">Pause</button>
+    <button id="resetWallsBtn" type="button">Reset walls</button>
+    <button id="autoBtn" type="button" aria-pressed="true">Auto start: on</button>
+    <button id="moveBtn" type="button" aria-pressed="true">Auto move: on</button>
+    <button id="tutBtn" type="button">Tutorial</button>
+    <div class="speed" role="group" aria-label="Game speed">
+      <span>Speed</span>
+      <button type="button" data-speed="1" aria-pressed="true">1×</button>
+      <button type="button" data-speed="2" aria-pressed="false">2×</button>
+      <button type="button" data-speed="4" aria-pressed="false">4×</button>
+    </div>
+  </div>
+
+  <div class="field">
+    <canvas id="cv" width="960" height="600" aria-label="Battlefield"></canvas>
+    <div class="banner" id="banner" hidden><b id="bannerText"></b><span id="bannerSub"></span><button class="primary" id="nextBtn" type="button">Next level</button><span id="countdown" aria-live="polite"></span><button type="button" id="stopAuto" class="ghost">Stop auto start</button></div>
+  </div>
+
+  <p class="mousehint" id="mouseHint" hidden>🖱️ <b>Mouse mode:</b> your tank drives to your mouse and aims at it. Hold the mouse button (or your finger) to shoot. Press <b>Auto move</b> to let your tank's rules drive again.</p>
+  <div class="admin" id="adminPanel" hidden>
+    <h2>Admin tools</h2>
+    <p class="note">Only admins see this. Drag any tank or wall in the arena to move it (walls stay where you put them). Pick a tank here, or click it in the arena, to give it abilities or take them away for this battle.</p>
+    <label class="crow"><span>Tank</span><select id="admSel" aria-label="Tank to change"></select></label>
+    <div class="admab" id="admAb" role="group" aria-label="Abilities"></div>
+    <div class="ed-actions"><button type="button" id="admHeal">Full health</button><button type="button" id="admClear">Remove all abilities</button><button type="button" id="admLogout" hidden>Stop being admin</button></div>
+    <div class="lockbox" id="lockBox" hidden>
+      <h3>Lockdown</h3>
+      <p class="note">Lockdown kicks everybody else out of the game right away, until you turn it off. You can still play.</p>
+      <div class="lockopts">
+        <label>Screen <select id="lockColor"><option value="black">Black</option><option value="white">White</option></select></label>
+        <label>Estimated time <select id="lockTime"><option value="5">5 minutes</option><option value="15" selected>15 minutes</option><option value="30">30 minutes</option><option value="60">1 hour</option><option value="1440">1 day</option><option value="0">Not sure</option></select></label>
+      </div>
+      <button type="button" id="lockBtn" class="danger">Turn on lockdown</button> <span id="lockStatus" aria-live="polite"></span>
+    </div>
+  </div>
+  <div class="prog">
+    <span class="plv-num" id="plvNum">1</span>
+    <div class="plv-mid"><b>Player level</b><div class="xpbar"><i id="xpFill"></i></div><small id="xpText"></small></div>
+    <div class="pts"><b id="ptsNum">0</b><small>points</small></div>
+  </div>
+  <div class="rebirth">
+    <span class="rb-info"><b id="rbCount">Rebirths: 0</b><small id="rbMult">Points ×1.0</small></span>
+    <button type="button" id="rbBtn" class="rbbtn">Rebirth</button>
+    <small id="rbMsg" aria-live="polite"></small>
+  </div>
+  <p class="note">Win battles to earn points. Points raise your player level, which unlocks tournaments and more stuff for custom battles. You can also spend points in the upgrade shop.</p>
+
+  <h2>Enemies this battle</h2>
+  <div class="enemies" id="enemies"></div>
+
+</section>
+<section class="screen" data-screen="online" hidden>
+  <div class="scr-top"><button type="button" class="backbtn" data-back>← Back to menu</button><span class="scr-hint">or press Esc</span></div>
+  <h2 id="secOnline">Online battle</h2>
+  <p class="note">Play a friend live over the internet, from anywhere. No login needed. Team up against the bots, or battle each other. The host gets a game code (5 numbers) and the friend types it in. Only play with people you know.</p>
+  <p class="note warnbox" id="netWhere" hidden><b>Heads up:</b> claude.ai blocks online battles. To play online, open the game from its website or the downloaded file (Tank Battles 1.html) in Chrome. Your friend needs to open it the same way.</p>
+  <div class="net" id="netBox">
+    <div class="ed-actions"><label class="crow"><span>Mode</span><select id="netMode" aria-label="Game mode"><option value="coop">Team up vs bots</option><option value="vs">Battle each other</option></select></label><button type="button" class="primary" id="qHost">Host a game</button><button type="button" id="qJoin">Join a game</button><button type="button" id="netLeave" hidden>Leave game</button></div>
+    <div id="qHostView" hidden><p>Your game code:</p><div class="bigcode" id="qShow">-----</div><p>Tell your friend this code. When they type it in, you'll get their invitation to play.</p></div>
+    <div id="qJoinView" hidden><p>Type your friend's game code:</p><div class="ed-actions"><input id="qCode" type="text" inputmode="numeric" maxlength="5" placeholder="12345" aria-label="Game code" autocomplete="off" class="qcode"><button type="button" class="primary" id="qGo">Join!</button></div></div>
+    <details id="longBox"><summary>Short code not working? Use a long code instead</summary>
+    <div class="ed-actions"><button type="button" id="netHost">Host with a long code</button><button type="button" id="netJoin">Join with a long code</button></div>
+    <div id="netHostSteps" hidden>
+      <p><b>Step 1.</b> Send this invitation code to your friend: <button type="button" id="netCopyOffer">Copy code</button> When they paste it anywhere in the game, an invitation pops up for them.</p>
+      <textarea id="netOffer" readonly rows="2" aria-label="Your host code"></textarea>
+      <p><b>Step 2.</b> Paste the reply code your friend sends back:</p>
+      <div class="ed-actions"><input id="netAnswerIn" type="text" placeholder="Paste reply code (TBJ-…)" aria-label="Friend's reply code" spellcheck="false" autocomplete="off"><button type="button" class="primary" id="netConnect">Connect!</button></div>
+    </div>
+    <div id="netJoinSteps" hidden>
+      <p><b>Step 1.</b> Paste the code your friend (the host) sent you:</p>
+      <div class="ed-actions"><input id="netOfferIn" type="text" placeholder="Paste host code (TBH-…)" aria-label="Host's code" spellcheck="false" autocomplete="off"><button type="button" class="primary" id="netMakeAnswer">Make reply code</button></div>
+      <div id="netAnswerWrap" hidden><p><b>Step 2.</b> Send this reply code back to the host: <button type="button" id="netCopyAnswer">Copy code</button></p>
+      <textarea id="netAnswer" readonly rows="2" aria-label="Your reply code"></textarea></div>
+    </div>
+    </details>
+    <p class="note" id="netStatus" aria-live="polite"></p>
+    <p class="note">In the battle, drive with <kbd>W</kbd><kbd>A</kbd><kbd>S</kbd><kbd>D</kbd> or the arrow keys and shoot with <kbd>Space</kbd>. Your gun aims by itself.</p>
+  </div>
+
+</section>
+<section class="screen" data-screen="account" hidden>
+  <div class="scr-top"><button type="button" class="backbtn" data-back>← Back to menu</button><span class="scr-hint">or press Esc</span></div>
+  <h2 id="secAccount">Your account</h2>
+  <p class="note">Pick a username and a password. Then make a <b>save code</b>. Keep it somewhere safe, like an email to yourself. Put it into any copy of Tank Battles 1 with your password and all your stuff comes back: levels, points, player level, rebirths, your tank and more. <b>Don't use a password you use anywhere else.</b></p>
+  <div class="acct" id="acctNew">
+    <h3 class="sub3">Make your account</h3>
+    <div class="ed-actions"><input id="acUser" type="text" maxlength="14" placeholder="Username" aria-label="Username" autocomplete="username" spellcheck="false"><input id="acPass" type="password" maxlength="40" placeholder="Password" aria-label="Password" autocomplete="new-password"><button type="button" class="primary" id="acCreate">Create account</button></div>
+  </div>
+  <div class="acct" id="acctMe" hidden>
+    <p class="acwho">👤 Logged in as <b id="acName"></b> <button type="button" id="acOut">Log out</button></p>
+    <h3 class="sub3">Save my stuff</h3>
+    <div class="ed-actions"><input id="acPass2" type="password" maxlength="40" placeholder="Your password" aria-label="Your password" autocomplete="current-password"><button type="button" class="primary" id="acSave">Make my save code</button></div>
+    <textarea id="acCode" readonly rows="3" aria-label="Your save code" hidden></textarea>
+    <div class="ed-actions"><button type="button" id="acCopy" hidden>Copy save code</button></div>
+    <p class="note">Make a new save code whenever you want to keep your newest stuff.</p>
+  </div>
+  <div class="acct">
+    <h3 class="sub3">Get my stuff back</h3>
+    <textarea id="acLoadCode" rows="3" placeholder="Paste your save code (starts with TB1-)" aria-label="Save code to load" spellcheck="false"></textarea>
+    <div class="ed-actions"><input id="acPass3" type="password" maxlength="40" placeholder="Your password" aria-label="Password for this save code" autocomplete="current-password"><button type="button" class="primary" id="acLoad">Load my stuff</button></div>
+  </div>
+  <p class="note" id="acMsg" aria-live="polite"></p>
+</section>
+<section class="screen" data-screen="levels" hidden>
+  <div class="scr-top"><button type="button" class="backbtn" data-back>← Back to menu</button><span class="scr-hint">or press Esc</span></div>
+  <h2 id="secLevels">Pick a level</h2>
+  <p class="note">Pick a map or a level. The battle starts right away.</p>
+  <div class="maps" id="maps" role="group" aria-label="Maps"></div>
+  <div class="aimaps" id="aiBox" hidden>
+    <h3>Your AI maps <small>saved, so you can go back to them</small></h3>
+    <div class="maps" id="aiMaps" role="group" aria-label="AI maps"></div>
+  </div>
+  <div class="pick">
+    <label for="lvlPick">Pick your level</label>
+    <select id="lvlPick"></select>
+    <input id="lvlType" type="number" min="1" inputmode="numeric" placeholder="Level number" aria-label="Level number" hidden>
+    <button type="button" id="lvlGo" class="primary">Play this level</button>
+  </div>
+
+</section>
+<section class="screen" data-screen="tours" hidden>
+  <div class="scr-top"><button type="button" class="backbtn" data-back>← Back to menu</button><span class="scr-hint">or press Esc</span></div>
+  <h2 id="secTours">Tournaments</h2>
+  <p class="note">Win 3 rounds in a row: one bot, then two, then the Champion boss. Lose once and you start the cup again.</p>
+  <div class="tours" id="tours"></div>
+
+</section>
+<section class="screen" data-screen="shop" hidden>
+  <div class="scr-top"><button type="button" class="backbtn" data-back>← Back to menu</button><span class="scr-hint">or press Esc</span></div>
+  <p class="scr-pts">You have <b class="ptsMirror">0</b> points.</p>
+  <h2 id="secShop">Upgrade shop</h2>
+  <p class="note">Buy an ability your tank keeps for the whole battle, for the next few battles. It starts with your next battle. Beat level 301 to unlock Super tank here!</p>
+  <div class="shop" id="shop"></div>
+
+</section>
+<section class="screen" data-screen="perm" hidden>
+  <div class="scr-top"><button type="button" class="backbtn" data-back>← Back to menu</button><span class="scr-hint">or press Esc</span></div>
+  <h2 id="secPerm">Permanent abilities</h2>
+  <p class="note">Every 30 player levels unlocks an ability your tank keeps forever. Switch each one on or off. They work in every battle except friend battles and 2-player battles.</p>
+  <div class="shop" id="perm"></div>
+
+</section>
+<section class="screen" data-screen="custom" hidden>
+  <div class="scr-top"><button type="button" class="backbtn" data-back>← Back to menu</button><span class="scr-hint">or press Esc</span></div>
+  <h2 id="secCustom">Custom battle</h2>
+  <p class="note">Make your own battle. Each player level unlocks more bots, maps and dangers.</p>
+  <div class="custom" id="custom"></div>
+
+</section>
+<section class="screen" data-screen="duo" hidden>
+  <div class="scr-top"><button type="button" class="backbtn" data-back>← Back to menu</button><span class="scr-hint">or press Esc</span></div>
+  <h2 id="secMulti">Multiplayer</h2>
+  <p class="note"><b>No login needed:</b> 2 players on 1 computer and tank codes work in Chrome or any browser. For live play over the internet, use <b>Online battle</b> in the menu.</p>
+  <h3 class="sub3" id="secDuo">2 players on 1 computer: no login, no internet</h3>
+  <p class="note">Play with a friend sitting next to you, live! Team up against the bots, or battle each other. Each of you drives a tank with the keyboard. Your guns aim by themselves, so you just drive and shoot.</p>
+  <div class="duokeys">
+    <div><b>Player 1</b> (yellow, left side)<br><kbd>W</kbd> <kbd>A</kbd> <kbd>S</kbd> <kbd>D</kbd> drive · <kbd>Space</kbd> shoot</div>
+    <div><b>Player 2</b> (right side)<br><kbd>↑</kbd> <kbd>←</kbd> <kbd>↓</kbd> <kbd>→</kbd> drive · <kbd>Enter</kbd> shoot</div>
+  </div>
+  <div class="ed-actions"><label class="crow"><span>Mode</span><select id="duoMode" aria-label="Game mode"><option value="coop">Team up vs bots</option><option value="vs">Battle each other</option></select></label><label class="crow"><span>Map</span><select id="duoMap" aria-label="Map for 2 players"></select></label><button type="button" class="primary" id="duoStart">Start 2-player battle</button></div>
+
+</section>
+<section class="screen" data-screen="tcodes" hidden>
+  <div class="scr-top"><button type="button" class="backbtn" data-back>← Back to menu</button><span class="scr-hint">or press Esc</span></div>
+  <h2 id="secTcodes">Tank codes</h2>
+  <p class="note">Got a tank code? Type it here to get that tank. It becomes <b>your</b> tank, with its own brain and color, and some special tanks are extra strong! You can also share your own tank: copy your code and a friend can type it in to get a tank just like yours.</p>
+  <div class="tcodes">
+    <div class="ed-actions"><input id="pasteCode" type="text" placeholder="Type a tank code" aria-label="Tank code" spellcheck="false" autocomplete="off"><button type="button" class="primary" id="playCode">Get this tank!</button></div>
+    <p class="note" id="codeErr" aria-live="polite"></p>
+    <div class="ed-actions"><button type="button" id="copyCode">Copy my tank code</button><span id="copyMsg" aria-live="polite"></span></div>
+    <textarea id="myCode" readonly rows="2" aria-label="Your tank code" hidden></textarea>
+  </div>
+
+
+</section>
+<section class="screen" data-screen="codes" hidden>
+  <div class="scr-top"><button type="button" class="backbtn" data-back>← Back to menu</button><span class="scr-hint">or press Esc</span></div>
+  <h2 id="secCodes">Secret codes</h2>
+  <p class="note">Got a code from Liam? Type it here.</p>
+  <form class="codes" id="codeForm" autocomplete="off">
+    <input id="codeIn" type="text" maxlength="24" placeholder="Enter code" aria-label="Secret code" spellcheck="false">
+    <button type="submit" class="primary">Use code</button>
+    <span id="codeMsg" aria-live="polite"></span>
+    <button type="button" id="superBtn" hidden>Super tank: on</button>
+  </form>
+
+</section>
+<section class="screen" data-screen="build" hidden>
+  <div class="scr-top"><button type="button" class="backbtn" data-back>← Back to menu</button><span class="scr-hint">or press Esc</span></div>
+  <h2 id="secBuild">Build your tank</h2>
+  <p class="note">Your tank checks its rules from top to bottom many times every second. If two rules both say how to drive, the higher one wins. Changes work right away, even in the middle of a fight. Stuck? Load a ready-made brain below and change it to make it your own (loading replaces your rules).</p>
+  <div class="editor" id="editor">
+    <div class="ed-top">
+      <label class="ed-name">Name <input id="myName" type="text" maxlength="14" autocomplete="off"></label>
+      <div class="colors" id="myColors" role="group" aria-label="Tank color"></div>
+    </div>
+    <div class="rulelist" id="ruleList"></div>
+    <div class="ed-actions">
+      <button type="button" id="addRule">+ Add rule</button>
+      <span class="preset"><select id="presetSel" aria-label="Ready-made tank brain"></select><button type="button" id="loadPreset">Load this brain</button></span>
+      <button type="button" class="primary" id="useMine">Battle with my tank</button>
+    </div>
+  </div>
+
+  <h2>Your tank</h2>
+  <p class="note">Tap a tank to make it yours, or build your own above. It starts on the next level or retry. Win a level and the bots get tougher: more of them, more health, faster shooting, and a boss every 5 levels.</p>
+  <div class="tanks" id="cards"></div>
+
+</section>
+<section class="screen" data-screen="howto" hidden>
+  <div class="scr-top"><button type="button" class="backbtn" data-back>← Back to menu</button><span class="scr-hint">or press Esc</span></div>
+  <h2 id="secHow">How it works</h2>
+  <h2>Danger zone</h2>
+  <ul class="legend">
+    <li><span class="chip" style="background:#2b2b2b">MINE</span><span><b>Land mines</b> are hidden. You can only see them while you have a Shield, and the Shield also protects you if you drive over one.</span></li>
+    <li><span class="chip" style="background:#e0402c">AIR</span><span><b>Airstrikes</b> show a red target circle first, then a plane flies over. They usually aim at cracked weak walls and blow them up.</span></li>
+    <li><span class="chip" style="background:#c8a96b">BOX</span><span><b>Supply drops</b>: sometimes the plane drops a power-up by parachute instead of a bomb.</span></li>
+  </ul>
+
+  <h2>Power-ups</h2>
+  <p class="note">Every time a tank blows up it drops one. Any tank, even a bot, can drive over it to grab it.</p>
+  <ul class="legend" id="legend"></ul>
+</section>
+  <footer class="copy">© 2026 Liam. Tank Battles 1: game idea, levels, rules and design by Liam. All rights reserved.</footer>
+</div>
+
+<script>
+(() => {
+const W = 960, H = 600;
+const cv = document.getElementById('cv'), ctx = cv.getContext('2d');
+// ---------- Maps: every 5 levels you move to a new map ----------
+const MAPS = [
+  { name:'Desert Base', ground:null, walls:[
+    {x:300,y:110,w:30,h:170},{x:630,y:320,w:30,h:170},
+    {x:420,y:285,w:120,h:30},{x:110,y:430,w:150,h:26},{x:700,y:145,w:150,h:26}]},
+  { name:'Snow Fort', ground:'#e6edf1', grid:'#d3dde4', wall:'#6f7f8d', top:'#9fb0bf', walls:[
+    {x:380,y:180,w:200,h:24},{x:380,y:396,w:200,h:24},
+    {x:380,y:204,w:24,h:66},{x:380,y:330,w:24,h:66},{x:556,y:204,w:24,h:66},{x:556,y:330,w:24,h:66},
+    {x:160,y:110,w:120,h:24},{x:160,y:466,w:120,h:24},{x:720,y:220,w:24,h:160}]},
+  { name:'Jungle', ground:'#5a8442', grid:'#527a3c', wall:'#3b2b1a', top:'#2f6b2a', walls:[
+    {x:200,y:140,w:36,h:36},{x:260,y:420,w:36,h:36},{x:330,y:250,w:36,h:36},{x:420,y:150,w:36,h:36},
+    {x:430,y:400,w:36,h:36},{x:520,y:320,w:36,h:36},{x:560,y:200,w:36,h:36},{x:600,y:470,w:36,h:36},
+    {x:640,y:110,w:36,h:36},{x:740,y:330,w:36,h:36},{x:770,y:190,w:36,h:36},{x:180,y:290,w:36,h:36}]},
+  { name:'City Streets', ground:'#6d7075', grid:'#777a7f', wall:'#3c4048', top:'#5a616d', walls:[
+    {x:180,y:110,w:110,h:80},{x:420,y:110,w:110,h:80},{x:660,y:110,w:110,h:80},
+    {x:180,y:410,w:110,h:80},{x:420,y:410,w:110,h:80},{x:660,y:410,w:110,h:80},
+    {x:300,y:260,w:60,h:80},{x:600,y:260,w:60,h:80}]},
+  { name:'Lava Caves', ground:'#4a2a22', grid:'#5a3328', wall:'#1d1514', top:'#3a2622', walls:[
+    {x:220,y:0,w:30,h:210},{x:220,y:390,w:30,h:210},{x:460,y:150,w:30,h:300},
+    {x:700,y:0,w:30,h:190},{x:700,y:410,w:30,h:190}]},
+  { name:'Moon Base', ground:'#2b2f3d', grid:'#363b4c', wall:'#7d86a0', top:'#a6aec6', walls:[
+    {x:150,y:150,w:60,h:60},{x:150,y:390,w:60,h:60},{x:330,y:270,w:60,h:60},{x:450,y:150,w:60,h:60},
+    {x:450,y:390,w:60,h:60},{x:570,y:270,w:60,h:60},{x:740,y:150,w:60,h:60},{x:740,y:390,w:60,h:60}]},
+];
+for(const m of MAPS) m.start = m.walls.map(w=>({...w}));
+const FINAL_LEVEL = MAPS.length*5;   // 30 hand-made levels, then AI maps
+const MAX_LEVEL = 200000;            // Liam's max level
+let PLAYER_CAP = 50;                 // full growth up to here, then your tank keeps growing slowly like the bots
+// After the hand-made maps, the game builds a brand new map every 5 levels.
+const GEN = {};
+function seeded(seed){ let x=seed>>>0; return ()=>{ x=(x+0x6D2B79F5)>>>0; let t=x; t=Math.imul(t^(t>>>15),t|1); t^=t+Math.imul(t^(t>>>7),t|61); return ((t^(t>>>14))>>>0)/4294967296; }; }
+const GEN_THEMES = [
+  {ground:'#c7b07a',grid:'#b9a26c',wall:'#6b5236',top:'#8a6c48',place:'Canyon'},
+  {ground:'#dfe8ee',grid:'#cbd8e1',wall:'#5d7389',top:'#89a2b8',place:'Glacier'},
+  {ground:'#3f6f4a',grid:'#386543',wall:'#24361f',top:'#3f5a2e',place:'Swamp'},
+  {ground:'#5b5f66',grid:'#666a71',wall:'#2b2f36',top:'#474d58',place:'Factory'},
+  {ground:'#55302a',grid:'#633832',wall:'#1f1312',top:'#3d2420',place:'Volcano'},
+  {ground:'#232634',grid:'#2d3142',wall:'#7180a3',top:'#9aa7c7',place:'Space Station'},
+  {ground:'#d9c58f',grid:'#cdb87f',wall:'#7b6a45',top:'#a08c5e',place:'Pyramids'},
+  {ground:'#2f4858',grid:'#38566a',wall:'#16242d',top:'#2a4252',place:'Sunken City'},
+];
+const GEN_WORDS = ['Crazy','Secret','Haunted','Lost','Mega','Stormy','Crystal','Rusty','Thunder','Shadow','Frozen','Burning'];
+// AI maps are saved the first time they are made, so they stay exactly the same when you come back.
+function savedGen(){ try { return JSON.parse(localStorage.getItem('tank-genmaps')||'{}')||{}; } catch(e){ return {}; } }
+function genMap(idx){
+  if(GEN[idx]) return GEN[idx];
+  const sv=savedGen()[idx];
+  if(sv && Array.isArray(sv.walls) && sv.walls.length){
+    const m={...sv, generated:true}; m.start=m.walls.map(w=>({...w})); return GEN[idx]=m;
+  }
+  for(let attempt=0; attempt<50; attempt++){
+    const rnd=seeded(idx*7919+attempt*104729+17);
+    const th=GEN_THEMES[Math.floor(rnd()*GEN_THEMES.length)];
+    const name=GEN_WORDS[Math.floor(rnd()*GEN_WORDS.length)]+' '+th.place;
+    const keep=[PLAYER_SPAWN, ...BOT_SPAWNS];
+    const walls=[], want=5+Math.floor(rnd()*5);
+    for(let tries=0; walls.length<want && tries<300; tries++){
+      const long=rnd()<.6, vertical=rnd()<.5;
+      const w = long ? (vertical?28:90+rnd()*140) : 40+rnd()*50;
+      const h = long ? (vertical?90+rnd()*140:28) : 40+rnd()*50;
+      const x=Math.round(60+rnd()*(W-120-w)), y=Math.round(30+rnd()*(H-60-h));
+      const near=(px,py,pad)=>px>x-pad&&px<x+w+pad&&py>y-pad&&py<y+h+pad;
+      if(keep.some(([px,py])=>near(px,py,70))) continue;
+      if(walls.some(o=>x<o.x+o.w+45&&x+w+45>o.x&&y<o.y+o.h+45&&y+h+45>o.y)) continue;
+      walls.push({x,y,w:Math.round(w),h:Math.round(h)});
+    }
+    if(reachable(walls)){
+      const m={name, generated:true, ground:th.ground, grid:th.grid, wall:th.wall, top:th.top, walls};
+      m.start=walls.map(w=>({...w}));
+      try { const all=savedGen(); all[idx]={name,ground:th.ground,grid:th.grid,wall:th.wall,top:th.top,walls}; localStorage.setItem('tank-genmaps',JSON.stringify(all)); } catch(e){}
+      return GEN[idx]=m;
+    }
+  }
+  return MAPS[idx % MAPS.length];
+}
+// make sure every bot can drive to the player (no walled-in tanks)
+function reachable(walls){
+  const C=20, cols=Math.ceil(W/C), rows=Math.ceil(H/C);
+  const free=(cx,cy)=>{ const x=cx*C+C/2, y=cy*C+C/2; return x>20&&y>20&&x<W-20&&y<H-20 && !walls.some(w=>x>w.x-22&&x<w.x+w.w+22&&y>w.y-22&&y<w.y+w.h+22); };
+  const start=[Math.floor(PLAYER_SPAWN[0]/C),Math.floor(PLAYER_SPAWN[1]/C)], seen=new Set([start.join()]), q=[start];
+  while(q.length){ const [cx,cy]=q.shift(); for(const [dx,dy] of [[1,0],[-1,0],[0,1],[0,-1]]){ const nx=cx+dx, ny=cy+dy, k=nx+','+ny;
+    if(nx<0||ny<0||nx>=cols||ny>=rows||seen.has(k)||!free(nx,ny)) continue; seen.add(k); q.push([nx,ny]); } }
+  return BOT_SPAWNS.every(([x,y])=>seen.has(Math.floor(x/C)+','+Math.floor(y/C)));
+}
+const mapFor = L => { const idx=Math.floor((L-1)/5); return idx<MAPS.length ? MAPS[idx] : genMap(idx); };
+let WALL_LAYOUT = MAPS[0].walls;
+let WALLS = WALL_LAYOUT.slice();
+let quiet = 0, crumbled = false;
+const PLAYER_SPAWN = [70,300];
+const BOT_SPAWNS = [[W-70,70],[W-70,H-70],[W-70,300],[480,60],[480,H-60]];
+const TAU = Math.PI*2;
+const angDiff = (a,b) => { let d=(b-a)%TAU; if(d>Math.PI)d-=TAU; if(d<-Math.PI)d+=TAU; return d; };
+const clamp = (v,a,b) => Math.max(a,Math.min(b,v));
+
+// ---------- Tank brains: each one is a set of simple rules ----------
+const TYPES = [
+  { name:'Rusher', color:'#d2452f',
+    rules:[['WHEN','I see an enemy'],['DO','drive straight at it'],['DO','fire when aimed']],
+    brain(me, see){
+      const t = see.enemy || see.radar;
+      if(!t) return {drive:.5, turn:.3};
+      return {drive:1, turn:Math.sign(angDiff(me.a,t.angle)), aim:see.enemy&&see.enemy.angle, fire:!!see.enemy};
+    }},
+  { name:'Sniper', color:'#2f7fd2',
+    rules:[['WHEN','an enemy is close'],['DO','back away'],['ALWAYS','aim carefully, then fire']],
+    brain(me, see, mem){
+      const e = see.enemy;
+      if(!e){ const r=see.radar; return {drive:.7, turn:r?Math.sign(angDiff(me.a,r.angle)):0}; }
+      mem.back = e.dist<300 ? (mem.back||0)+1 : 0;
+      const drive = e.dist<300 && mem.back<90 ? -.8 : e.dist>430 ? .5 : 0;
+      return {drive, turn:Math.sign(angDiff(me.a,e.angle))*.6, aim:e.angle, fire:Math.abs(angDiff(me.turret,e.lead))<.06};
+    }},
+  { name:'Spinner', color:'#d9a521',
+    rules:[['WHEN','I see an enemy'],['DO','drive in circles around it'],['DO','keep shooting']],
+    brain(me, see){
+      const e = see.enemy;
+      if(!e){ const r=see.radar; return {drive:.8, turn:r?Math.sign(angDiff(me.a,r.angle)):1}; }
+      const want = e.angle + (e.dist>220 ? Math.PI/3 : Math.PI/2);
+      return {drive:1, turn:Math.sign(angDiff(me.a,want)), aim:e.angle, fire:true};
+    }},
+  { name:'Wanderer', color:'#8a4fc7',
+    rules:[['ALWAYS','drive around randomly'],['WHEN','I see an enemy'],['DO','shoot at it']],
+    brain(me, see, mem){
+      if(!mem.t || mem.t--<=0){ mem.t = 60+Math.random()*90; mem.turn = (Math.random()*2-1); }
+      const e = see.enemy;
+      mem.unseen = e ? 0 : (mem.unseen||0)+1;
+      if(mem.unseen>120 && see.radar) return {drive:.9, turn:Math.sign(angDiff(me.a,see.radar.angle))};
+      return {drive:.85, turn:mem.turn, aim:e&&e.angle, fire:!!e};
+    }},
+];
+const BOSS = { name:'BOSS', color:'#3b3b3b', brain: TYPES[0].brain };
+
+// ---------- Power-ups: one drops every time a tank blows up ----------
+const ABILITIES = [
+  {id:'speed',  label:'SPD', name:'Speed boost', color:'#2fb7d2', time:480, desc:'drive and turn faster'},
+  {id:'shield', label:'SHD', name:'Shield',      color:'#4fa3ff', time:420, desc:'bullets bounce off you'},
+  {id:'rapid',  label:'RPD', name:'Rapid fire',  color:'#ff8a2f', time:480, desc:'shoot 3× as often'},
+  {id:'triple', label:'x3',  name:'Triple shot', color:'#e84fb0', time:480, desc:'3 bullets in a spread'},
+  {id:'big',    label:'BIG', name:'Big bullets', color:'#a35cff', time:480, desc:'huge bullets, more damage'},
+  {id:'repair', label:'+HP', name:'Repair',      color:'#3fbf4f', time:0,   desc:'heal 50 health right away'},
+  {id:'freeze', label:'ICE', name:'Freeze shot', color:'#7fe3ff', time:480, desc:'hits freeze tanks in place'},
+  {id:'homing', label:'HOM', name:'Homing',      color:'#ff5a5a', time:480, desc:'bullets curve toward enemies'},
+  {id:'ghost',  label:'GHO', name:'Ghost',       color:'#b8b8c8', time:360, desc:'enemies can\'t see you unless they are close'},
+  {id:'bouncy', label:'BNC', name:'Bouncy',      color:'#ffd23f', time:480, desc:'bullets bounce off walls twice'},
+  {id:'giant',  label:'GNT', name:'Giant',       color:'#8bc34a', time:420, desc:'grow huge, double damage'},
+];
+
+// ---------- Levels: win and the next bots are tougher ----------
+function botBase(L){
+  const scale = Math.max(0, Math.min(L,100)-1), extra = Math.max(0, Math.min(L,MAX_LEVEL)-100);
+  return {   // harder bots (v36): tougher, quicker and better aim, and they keep growing after level 100
+    hp: Math.min(420, 50 + scale*6 + Math.max(0,scale-15)*3) + Math.min(extra,2000)*0.4,
+    cool: Math.max(22, 56 - scale*.8),
+    spd: Math.min(1.5, .85 + scale*.03),
+    aim: Math.min(.12, .035 + scale*.003),
+    dmg: Math.min(2, 1 + scale*.025) + Math.min(extra,2000)*.0008,
+  };
+}
+const bossSpec = L => { const B=Math.min(L,100), X=Math.min(Math.max(0,L-100),2000); return {...botBase(L), type:BOSS, boss:true, hp: 120 + B*16 + X, cool: Math.max(22, 50 - B), r:30, spd: .9, dmg: 1.1 + B*.025 + X*.001, aim:Math.min(.07,.045+B*.0005), triple: L>=10}; };
+function levelPlan(L){
+  // returns list of bot specs
+  const base = botBase(L);
+  if(L % 5 === 0){
+    const minions = Math.min(3, L/5 - 1);
+    const list = [bossSpec(L)];
+    for(let i=0;i<minions;i++) list.push({...base, type:TYPES[(i+L)%4]});
+    return list;
+  }
+  const count = L<=2 ? 1 : L<=4 ? 2 : L<=12 ? 3 : L<=24 ? 4 : 5;
+  const order = [3,0,1,2]; // Wanderer first (easiest), then Rusher, Sniper, Spinner
+  return Array.from({length:count}, (_,i)=>({...base, type:TYPES[order[(i + Math.floor(L/2)) % 4]]}));
+}
+
+// ---------- Saved progress (only in this browser) ----------
+const store = {
+  get(k,d){ try { const v = localStorage.getItem(k); return v===null ? d : JSON.parse(v); } catch(e){ return d; } },
+  set(k,v){ try { localStorage.setItem(k, JSON.stringify(v)); } catch(e){} }
+};
+
+// ---------- Your own tank, built from rule blocks ----------
+const CONDS = [
+  ['always','always'],
+  ['see','I see an enemy'],
+  ['nosee','I can\'t see any enemy'],
+  ['close','an enemy is close'],
+  ['far','an enemy is far away'],
+  ['low','my health is low'],
+  ['hit','I just got hit'],
+  ['pnear','a power-up is near'],
+  ['haspow','I have a power-up'],
+  ['danger','an airstrike is coming at me'],
+  ['mine','I see a mine (needs Shield)'],
+];
+const ACTS = [
+  ['toward','drive toward the enemy'],
+  ['away','drive away from the enemy'],
+  ['circle','drive in circles around the enemy'],
+  ['zigzag','zigzag toward the enemy'],
+  ['getpow','drive to the power-up'],
+  ['random','drive around randomly'],
+  ['spin','spin in place'],
+  ['stop','stop'],
+  ['shoot','aim and shoot at the enemy'],
+  ['aim','aim at the enemy (no shooting)'],
+  ['flee','run out of the airstrike'],
+  ['avoidmine','steer away from the mine'],
+];
+const ANDS = [['none','(nothing)'], ...ACTS];
+const COLORS = ['#19a974','#e8572a','#2b6cd9','#e0b400','#c13fb3','#11a3b8','#6d4bd8','#444444'];
+const PRESETS = {
+  'Circle Shooter': [['danger','flee','shoot'],['mine','avoidmine','shoot'],['low','away','shoot'],['pnear','getpow','shoot'],['see','circle','shoot'],['nosee','toward','none']],
+  'Bulldozer':      [['danger','flee','shoot'],['see','toward','shoot'],['nosee','toward','none']],
+  'Sneaky Sniper':  [['danger','flee','shoot'],['mine','avoidmine','shoot'],['close','away','shoot'],['far','toward','shoot'],['see','stop','shoot'],['nosee','toward','none']],
+  'Dodger':         [['danger','flee','shoot'],['mine','avoidmine','shoot'],['hit','zigzag','shoot'],['pnear','getpow','shoot'],['see','circle','shoot'],['nosee','zigzag','none']],
+  'Power-up Hunter':[['danger','flee','shoot'],['mine','avoidmine','shoot'],['pnear','getpow','shoot'],['haspow','toward','shoot'],['see','away','shoot'],['nosee','toward','none']],
+};
+const EXAMPLE = [['danger','flee','shoot'],['mine','avoidmine','shoot'],['low','away','shoot'],['pnear','getpow','shoot'],['see','circle','shoot'],['nosee','toward','none']];
+let my = store.get('tank-custom', null);
+if(!my || !Array.isArray(my.rules)) my = {name:'My Tank', color:COLORS[0], rules:EXAMPLE.map(r=>r.slice())};
+const saveMy = () => store.set('tank-custom', my);
+const labelOf = (list,id) => (list.find(x=>x[0]===id)||['',''])[1];
+
+function checkCond(id, me, see){
+  const e = see.enemy;
+  switch(id){
+    case 'always': return true;
+    case 'see': return !!e;
+    case 'nosee': return !e;
+    case 'close': return !!e && e.dist<220;
+    case 'far': return !!e && e.dist>420;
+    case 'low': return me.hp < me.hpMax*.4;
+    case 'hit': return see.hurt < 45;
+    case 'pnear': return !!see.pickup && see.pickup.dist<320;
+    case 'haspow': return !!me.power;
+    case 'danger': return !!see.danger;
+    case 'mine': return !!see.mine && see.mine.dist<80;
+  }
+  return false;
+}
+function doAct(id, me, see, mem, c){
+  const e = see.enemy, target = e || see.radar;
+  const steer = a => Math.sign(angDiff(me.a, a));
+  const move = (drive, turn) => { if(c.drive===undefined){ c.drive=drive; c.turn=turn; } };
+  switch(id){
+    case 'toward': if(target) move(1, steer(target.angle)); break;
+    case 'away': if(target) move(1, steer(target.angle+Math.PI)); break;
+    case 'circle': if(e) move(1, steer(e.angle + (e.dist>220 ? Math.PI/3 : Math.PI/2))); else if(target) move(1, steer(target.angle)); break;
+    case 'zigzag': if(target){ mem.zz=(mem.zz||0)+1; move(1, steer(target.angle + (Math.floor(mem.zz/40)%2 ? .8 : -.8))); } break;
+    case 'getpow': if(see.pickup) move(1, steer(see.pickup.angle)); break;
+    case 'random':
+      if(!mem.rt || mem.rt--<=0){ mem.rt=60+Math.random()*90; mem.rturn=Math.random()*2-1; }
+      move(.85, mem.rturn); break;
+    case 'spin': move(0, 1); break;
+    case 'stop': move(0, 0); break;
+    case 'shoot': if(e){ if(c.aim===undefined) c.aim=e.angle; c.fire=true; } break;
+    case 'aim': if(e && c.aim===undefined) c.aim=e.angle; break;
+    case 'flee': if(see.danger) move(1, steer(see.danger.angle)); break;
+    case 'avoidmine': if(see.mine) move(1, steer(see.mine.angle+Math.PI)); break;
+  }
+}
+function runRules(rules, me, see, mem){
+  const c = {};
+  for(const r of rules){
+    if(!checkCond(r[0], me, see)) continue;
+    doAct(r[1], me, see, mem, c);
+    if(r[2] && r[2]!=='none') doAct(r[2], me, see, mem, c);
+  }
+  return c;
+}
+const MY_TYPE = {
+  custom:true,
+  get name(){ return my.name || 'My Tank'; },
+  get color(){ return my.color; },
+  get rules(){ return my.rules.map(r=>['WHEN', labelOf(CONDS,r[0])+' → '+labelOf(ACTS,r[1])+(r[2]&&r[2]!=='none'?' + '+labelOf(ACTS,r[2]):'')]); },
+  brain(me, see, mem){ return runRules(my.rules, me, see, mem); }
+};
+TYPES.push(MY_TYPE);
+const MY_INDEX = TYPES.length-1;
+
+const ruleList = document.getElementById('ruleList');
+function sel(list, value, label){
+  const s=document.createElement('select'); s.setAttribute('aria-label',label);
+  for(const [id,txt] of list){ const o=document.createElement('option'); o.value=id; o.textContent=txt; s.appendChild(o); }
+  s.value=value; return s;
+}
+function block(cls, word, select){
+  const b=document.createElement('span'); b.className='blk '+cls; b.append(word, select); return b;
+}
+function renderRules(){
+  ruleList.innerHTML='';
+  my.rules.forEach((r,i)=>{
+    const row=document.createElement('div'); row.className='rule';
+    const num=document.createElement('span'); num.className='num'; num.textContent=(i+1)+'.';
+    const w=sel(CONDS,r[0],'Rule '+(i+1)+' when'), d=sel(ACTS,r[1],'Rule '+(i+1)+' do'), a=sel(ANDS,r[2]||'none','Rule '+(i+1)+' and also');
+    w.onchange=()=>{ r[0]=w.value; changed(); };
+    d.onchange=()=>{ r[1]=d.value; changed(); };
+    a.onchange=()=>{ r[2]=a.value; changed(); };
+    const tools=document.createElement('span'); tools.className='rule-tools';
+    const mk=(txt,label,fn,dis)=>{ const b=document.createElement('button'); b.type='button'; b.textContent=txt; b.setAttribute('aria-label',label); b.disabled=!!dis; b.onclick=fn; return b; };
+    tools.append(
+      mk('↑','Move rule up',()=>{ [my.rules[i-1],my.rules[i]]=[my.rules[i],my.rules[i-1]]; changed(true); }, i===0),
+      mk('↓','Move rule down',()=>{ [my.rules[i+1],my.rules[i]]=[my.rules[i],my.rules[i+1]]; changed(true); }, i===my.rules.length-1),
+      mk('✕','Delete rule',()=>{ my.rules.splice(i,1); changed(true); })
+    );
+    row.append(num, block('when','WHEN',w), block('do','DO',d), block('and','AND',a), tools);
+    ruleList.appendChild(row);
+  });
+  if(!my.rules.length){ const p=document.createElement('p'); p.className='note'; p.textContent='No rules yet, so your tank will just sit still. Add a rule to give it a brain.'; ruleList.appendChild(p); }
+}
+function changed(rerender){ saveMy(); if(rerender) renderRules(); buildCards(); }
+function renderColors(){
+  const box=document.getElementById('myColors'); box.innerHTML='';
+  for(const col of COLORS){
+    const b=document.createElement('button'); b.type='button'; b.style.background=col; b.setAttribute('aria-label','Color '+col);
+    b.setAttribute('aria-pressed', col===my.color);
+    b.onclick=()=>{ my.color=col; saveMy(); renderColors(); buildCards(); };
+    box.appendChild(b);
+  }
+}
+const nameIn=document.getElementById('myName');
+nameIn.value=my.name;
+nameIn.oninput=()=>{ my.name=nameIn.value.trim()||'My Tank'; saveMy(); buildCards(); };
+document.getElementById('addRule').onclick=()=>{ my.rules.push(['see','shoot','none']); changed(true); };
+const presetSel=document.getElementById('presetSel');
+for(const name of Object.keys(PRESETS)){ const o=document.createElement('option'); o.value=name; o.textContent=name; presetSel.appendChild(o); }
+document.getElementById('loadPreset').onclick=()=>{ my.rules=PRESETS[presetSel.value].map(r=>r.slice()); changed(true); };
+document.getElementById('useMine').onclick=()=>{ chosen=MY_INDEX; store.set('tank-choice',chosen); startLevel(); document.querySelector('.field').scrollIntoView({behavior:'smooth',block:'start'}); };
+
+let best = store.get('tank-best', 1);
+let chosen = store.get('tank-choice', 2);
+let level = Math.max(1, Math.min(store.get('tank-level',1), best, MAX_LEVEL));   // carry on where you left off
+
+// ---------- Player level, points, tournaments, custom battles, upgrade shop ----------
+const PERM=[...['speed','rapid','big','homing','triple','bouncy','freeze','ghost','giant'].map((id,i)=>({id, at:(i+1)*30})), {id:'shield', at:100000}];   // Liam: one every 30 PLAYER levels, Shield at player level 100,000
+const LVL_XP=[0,100,250,450,700,1000,1400,1900,2500,3200,4000,5000];
+const MAX_PL = 200000;   // Liam: max player level
+// points you need to BE player level n: the table up to 12, then 1,000 more for each level after that
+const xpFor = n => n<=1 ? 0 : n<=LVL_XP.length ? LVL_XP[n-1] : LVL_XP[LVL_XP.length-1] + (n-LVL_XP.length)*1000;
+let prog = store.get('tank-prog', null);
+if(!prog || typeof prog.xp!=='number'){
+  const bonus = Math.max(0,(store.get('tank-best',1)-1)*15);   // credit for levels already beaten
+  prog = {xp:bonus, points:bonus, perks:{}, cups:{}};
+}
+prog.perks = prog.perks || {}; prog.cups = prog.cups || {};
+const saveProg = () => store.set('tank-prog', prog);
+let rbSure=false;
+document.getElementById('rbBtn').onclick=()=>{
+  if(playerLevel()<rebirthNeed()) return;
+  const btn=document.getElementById('rbBtn'), msg=document.getElementById('rbMsg');
+  if(!rbSure){ rbSure=true; btn.classList.add('sure'); btn.textContent='Are you sure? Click again to rebirth'; msg.textContent='Your player level and points go back to the start. You keep your levels, maps and tanks.'; setTimeout(()=>{ if(rbSure){ rbSure=false; renderProg(); msg.textContent=''; } },6000); return; }
+  rbSure=false; prog.rebirths=(prog.rebirths||0)+1; prog.xp=0; prog.points=0; saveProg(); renderProg();
+  msg.textContent='Rebirth '+prog.rebirths+'! You now get points ×'+pointsMult().toFixed(1)+'.';
+  float(W/2, H/2, 'REBIRTH '+prog.rebirths+'!', '#e07bff', 140);
+};
+saveProg();
+function playerLevel(){ const x=prog.xp, top=LVL_XP[LVL_XP.length-1]; if(x>=top) return Math.min(MAX_PL, LVL_XP.length+Math.floor((x-top)/1000)); let l=1; for(let i=1;i<LVL_XP.length;i++) if(x>=LVL_XP[i]) l=i+1; return l; }
+// Rebirth: start player level over, earn more points forever. Rebirth 1 needs player level 5, then 10, 15, 20… (+5 each time)
+const rebirthNeed = () => 5*((prog.rebirths||0)+1);
+const pointsMult = () => 1 + 0.1*(prog.rebirths||0);
+function award(n){
+  const before=playerLevel();
+  n=Math.round(n*pointsMult());
+  prog.xp+=n; prog.points+=n; saveProg();
+  { const after=playerLevel(); const np=PERM.filter(x=>x.at>before && x.at<=after); if(np.length) float(W/2, H/2+110, 'PERMANENT: '+np.map(x=>ABILITIES.find(a=>a.id===x.id).name).join(', ')+'!', '#7fe3ff', 160); }
+  float(W/2, H/2-70, '+'+n+' points', '#ffd23f', 100);
+  const up = playerLevel()>before;
+  if(up) float(W/2, H/2+70, 'Player level '+playerLevel()+'!', '#7fe3ff', 120);
+  renderProg();
+  return up;
+}
+
+const TIERS=[
+  {name:'Bronze Cup',  need:1, map:0, base:4,  prize:60,  color:'#c98a4b'},
+  {name:'Silver Cup',  need:3, map:2, base:10, prize:120, color:'#9aa4ae'},
+  {name:'Gold Cup',    need:5, map:4, base:18, prize:200, color:'#e0b400'},
+  {name:'Diamond Cup', need:7, map:5, base:26, prize:350, color:'#4fd1e0'},
+];
+let mode='campaign', tour=null, curMap=MAPS[0], diff=1, hz={mines:true,strikes:true};
+function tourPlan(){
+  const T=TIERS[tour.tier], L=T.base+tour.round*2;
+  if(tour.round===1) return levelPlan(L%5?L:L+1).slice(0,1);
+  if(tour.round===2) return levelPlan(L%5?L:L+1).slice(0,2);
+  const BL=Math.ceil(L/5)*5; return [bossSpec(BL), {...botBase(BL), type:TYPES[tour.tier%4]}];
+}
+
+const powerTime = (t,ab) => ab.time;
+const SHOP={speed:40, shield:90, rapid:70, triple:70, big:60, freeze:60, homing:90, ghost:100, bouncy:40, giant:80};
+const SUPER_COST = 5000;
+const SHOP_BATTLES = id => id==='ghost' ? 2 : 3;
+
+let cust = store.get('tank-cust', null) || {map:0, count:1, types:[3,0], boss:false, strength:3, mines:false, strikes:false};
+const saveCust = () => store.set('tank-cust', cust);
+const UNLOCK = { types:{3:1,0:1,1:2,2:3}, boss:4, mines:2, strikes:3 };
+const maxCount = () => Math.min(5, 1+playerLevel());
+const maxStrength = () => Math.min(30, playerLevel()*4);
+function customPlan(){
+  const PL=playerLevel(), L=Math.min(cust.strength, maxStrength());
+  let types=cust.types.filter(t=>PL>=UNLOCK.types[t]); if(!types.length) types=[3];
+  const n=Math.min(cust.count, maxCount());
+  const list=Array.from({length:n},(_,i)=>({...botBase(L), type:TYPES[types[i%types.length]]}));
+  if(cust.boss && PL>=UNLOCK.boss) list[0]=bossSpec(Math.max(5,L));
+  return list;
+}
+
+function renderProg(){
+  const PL=playerLevel(), cur=xpFor(PL), nxt=PL<MAX_PL ? xpFor(PL+1) : 0;
+  document.getElementById('plvNum').textContent=PL.toLocaleString();
+  { const rb=prog.rebirths||0, need=rebirthNeed(), btn=document.getElementById('rbBtn');
+    document.getElementById('rbCount').textContent='Rebirths: '+rb.toLocaleString();
+    document.getElementById('rbMult').textContent='Points ×'+pointsMult().toFixed(1)+(rb?' (forever)':'');
+    btn.disabled = PL<need; btn.classList.remove('sure'); rbSure=false;
+    btn.textContent = PL<need ? 'Rebirth (needs player level '+need.toLocaleString()+')' : 'Rebirth! (next: points ×'+(pointsMult()+.1).toFixed(1)+')'; }
+  document.getElementById('plvNum').style.fontSize = PL>=1000 ? '20px' : '';
+  document.querySelectorAll('.ptsMirror').forEach(e=>e.textContent=prog.points.toLocaleString());
+  document.getElementById('ptsNum').textContent=prog.points.toLocaleString(); document.getElementById('ptsNum').style.fontSize = prog.points>=1e6 ? '18px' : '';
+  document.getElementById('xpFill').style.width = nxt ? (100*(prog.xp-cur)/(nxt-cur))+'%' : '100%';
+  document.getElementById('xpText').textContent = nxt ? (nxt-prog.xp).toLocaleString()+' more points to player level '+(PL+1).toLocaleString() : 'Max player level '+MAX_PL.toLocaleString()+'!';
+  // tournaments
+  const tb=document.getElementById('tours'); tb.innerHTML='';
+  TIERS.forEach((T,i)=>{
+    const b=document.createElement('button'); b.type='button'; b.className='tourbtn'; b.disabled=PL<T.need;
+    const wins=prog.cups[i]||0;
+    b.innerHTML=`<span class="cup" style="background:${T.color}"></span><b>${T.name}</b><small>${PL<T.need?'Locked: player level '+T.need:'3 rounds on '+MAPS[T.map].name+' · prize '+T.prize+' pts'}</small>${wins?`<small class="won">Won ${wins}×</small>`:''}`;
+    b.onclick=()=>{ mode='tour'; tour={tier:i, round:1}; startLevel(); document.querySelector('.field').scrollIntoView({behavior:'smooth',block:'start'}); };
+    tb.appendChild(b);
+  });
+  // shop
+  const sb=document.getElementById('shop'); sb.innerHTML='';
+  for(const a of ABILITIES){ if(!SHOP[a.id]) continue;
+    const left=prog.perks[a.id]||0, cost=SHOP[a.id];
+    const row=document.createElement('div'); row.className='shopitem';
+    row.innerHTML=`<span class="chip" style="background:${a.color}">${a.label}</span><span class="si-text"><b>${a.name}</b><small>${left?left.toLocaleString()+' battle'+(left>1?'s':'')+' left':SHOP_BATTLES(a.id).toLocaleString()+' battles'}</small></span>`;
+    const buy=document.createElement('button'); buy.type='button'; buy.textContent=cost+' pts'; buy.disabled=prog.points<cost;
+    buy.setAttribute('aria-label','Buy '+a.name+' for '+cost+' points');
+    buy.onclick=()=>{ if(prog.points<cost) return; prog.points-=cost; prog.perks[a.id]=(prog.perks[a.id]||0)+SHOP_BATTLES(a.id); saveProg(); renderProg(); };
+    row.appendChild(buy); sb.appendChild(row);
+  }
+  { // Super tank: beat level 301 (the hardest level) to unlock it here, then buy it with points
+    const owned=store.get('tank-super-owned',false), open=store.get('tank-beat301',false);
+    const row=document.createElement('div'); row.className='shopitem superitem';
+    row.innerHTML=`<span class="chip" style="background:#e0402c">SUP</span><span class="si-text"><b>Super tank</b><small>${owned?'Yours forever! Switch it on or off under Secret codes.':open?'You beat level 301! Buy it to keep forever.':'Locked: beat level 301, the hardest level'}</small></span>`;
+    const buy=document.createElement('button'); buy.type='button';
+    buy.textContent= owned?'Owned':open?SUPER_COST.toLocaleString()+' pts':'Locked'; buy.disabled= owned || !open || prog.points<SUPER_COST;
+    buy.setAttribute('aria-label','Buy Super tank for '+SUPER_COST+' points');
+    buy.onclick=()=>{ if(owned||!open||prog.points<SUPER_COST) return; prog.points-=SUPER_COST; store.set('tank-super-owned',true); superOn=true; store.set('tank-super',true); saveProg(); renderProg(); showSuper(); };
+    row.appendChild(buy); sb.appendChild(row);
+  }
+  // permanent abilities
+  if(!prog.perm) prog.perm={};
+  const pb=document.getElementById('perm'); pb.innerHTML='';
+  for(const P of PERM){ const a=ABILITIES.find(x=>x.id===P.id), got=playerLevel()>=P.at, on=got && prog.perm[P.id]!==false;
+    const row=document.createElement('div'); row.className='shopitem';
+    row.innerHTML=`<span class="chip" style="background:${a.color}">${a.label}</span><span class="si-text"><b>${a.name}</b><small>${got?'Yours forever':'Reach player level '+P.at.toLocaleString()}</small></span>`;
+    const t=document.createElement('button'); t.type='button'; t.disabled=!got; t.textContent=got?(on?'On':'Off'):'Locked'; t.setAttribute('aria-pressed',on);
+    t.setAttribute('aria-label',a.name+' permanent ability');
+    t.onclick=()=>{ prog.perm[P.id]= !on ? true : false; saveProg(); renderProg(); };
+    row.appendChild(t); pb.appendChild(row);
+  }
+  renderCustom();
+}
+
+function renderCustom(){
+  const PL=playerLevel(), box=document.getElementById('custom'); box.innerHTML='';
+  const lock = need => PL>=need ? '' : ' (player level '+need+')';
+  // map
+  const mapRow=document.createElement('label'); mapRow.className='crow'; mapRow.innerHTML='<span>Map</span>';
+  const ms=document.createElement('select'); ms.id='custMap';
+  MAPS.forEach((m,i)=>{ const o=document.createElement('option'); o.value=i; o.textContent=m.name+lock(i+1); o.disabled=PL<i+1; ms.appendChild(o); });
+  if(PL<cust.map+1) cust.map=0; ms.value=cust.map; ms.onchange=()=>{ cust.map=+ms.value; saveCust(); };
+  mapRow.appendChild(ms); box.appendChild(mapRow);
+  // sliders
+  const slider=(label,id,key,max)=>{
+    const r=document.createElement('label'); r.className='crow';
+    cust[key]=Math.min(cust[key],max);
+    r.innerHTML=`<span>${label}</span><input type="range" id="${id}" min="1" max="${max}" value="${cust[key]}"><output>${cust[key]}</output><small>max ${max}</small>`;
+    const inp=r.querySelector('input'), out=r.querySelector('output');
+    inp.oninput=()=>{ cust[key]=+inp.value; out.textContent=inp.value; saveCust(); };
+    box.appendChild(r);
+  };
+  slider('Bots','custCount','count',maxCount());
+  slider('Bot strength','custStr','strength',maxStrength());
+  // bot types and extras
+  const opts=document.createElement('div'); opts.className='copts';
+  const check=(id,label,on,need,fn)=>{
+    const l=document.createElement('label'); l.className='cchk'+(PL<need?' locked':'');
+    l.innerHTML=`<input type="checkbox" id="${id}" ${on?'checked':''} ${PL<need?'disabled':''}> ${label}${lock(need)}`;
+    l.querySelector('input').onchange=e=>{ fn(e.target.checked); saveCust(); };
+    opts.appendChild(l);
+  };
+  [3,0,1,2].forEach(t=>check('custType'+t, TYPES[t].name, cust.types.includes(t), UNLOCK.types[t], on=>{ cust.types=cust.types.filter(x=>x!==t); if(on) cust.types.push(t); }));
+  check('custBoss','Boss tank',cust.boss,UNLOCK.boss,on=>cust.boss=on);
+  check('custMines','Land mines',cust.mines,UNLOCK.mines,on=>cust.mines=on);
+  check('custStrikes','Airstrikes',cust.strikes,UNLOCK.strikes,on=>cust.strikes=on);
+  box.appendChild(opts);
+  const go=document.createElement('button'); go.type='button'; go.className='primary'; go.id='custGo'; go.textContent='Start custom battle';
+  go.onclick=()=>{ mode='custom'; startLevel(); document.querySelector('.field').scrollIntoView({behavior:'smooth',block:'start'}); };
+  box.appendChild(go);
+}
+
+// ---------- World ----------
+let tanks=[], bullets=[], sparks=[], pickups=[], floaters=[], over=false, paused=false, speed=1;
+
+const fairMode = () => mode==='online' || mode==='duo';
+function makeTank(spec, x, y, team){
+  const a = Math.atan2(H/2-y, W/2-x);
+  return {type:spec.type, team, boss:!!spec.boss, triple:!!spec.triple, x, y, a, turret:a,
+    hp:spec.hp, hpMax:spec.hp, coolBase:spec.cool, spd:spec.spd, aimRate:spec.aim, dmgMult:spec.dmg, baseR:spec.r||18,
+    cool:40, mem:{}, hurt:999, stuck:0, unstick:0, lastX:x, lastY:y, alive:true, power:null, powerT:0, frozen:0,
+    label: team==='you' ? 'YOU' : (spec.label || (spec.boss ? 'BOSS' : 'Bot '+spec.type.name))};
+}
+
+function startLevel(){
+  if(typeof screen!=='undefined' && screen!=='battle') showScreen('battle');
+  let plan, intro, intro2=null, label, num;
+  if(mode==='tour'){
+    const T=TIERS[tour.tier]; diff=T.base+tour.round*2; plan=tourPlan(); curMap=MAPS[T.map];
+    intro=tour.round===3 ? 'Final: the Champion!' : T.name+' · Round '+tour.round; label=T.name+' · '+curMap.name; num='Round '+tour.round+'/3';
+    hz={mines:true,strikes:true};
+  } else if(mode==='online'){
+    diff=5; curMap=MAPS[online.map]; num=online.byCode?'Friend':'Online'; label=(online.byCode?'Friend battle · ':'Online · ')+curMap.name;
+    intro=online.byCode?'Friend battle':'Online battle'; intro2='vs '+online.opp.name;
+    plan=[{type:online.opp.type, hp:190, cool:29, spd:1, aim:.085, dmg:1.2, label:online.opp.name}];
+    hz={mines:true,strikes:true};
+  } else if(mode==='duo'){
+    diff=5; curMap=MAPS[duo.map]; num=net.role?'Internet':'2 players'; label=(net.role?'Internet battle · ':'2 players · ')+curMap.name;
+    if(duo.coop){
+      num=(net.role?'Internet':'2 players')+' · Team level '+duo.lvl; intro='Team level '+duo.lvl+(duo.lvl%5===0?': BOSS!':''); intro2='Team up!';
+      plan=levelPlan(duo.lvl).map(b=>({...b, hp:Math.round(b.hp*1.4)}));   // bots a bit tougher, since there are two of you
+    } else {
+      intro=net.role?'Internet battle!':'Player 1 vs Player 2'; intro2='Score '+duo.p1+' – '+duo.p2;
+      plan=[{type:TYPES[duo.p2type], hp:200, cool:28, spd:1, aim:.12, dmg:1, label:net.role?'FRIEND':'PLAYER 2'}];
+    }
+    hz={mines:true,strikes:true};
+  } else if(mode==='custom'){
+    const PL=playerLevel(); diff=Math.min(cust.strength,maxStrength()); plan=customPlan(); curMap=MAPS[cust.map];
+    intro='Custom battle'; label='Custom · '+curMap.name; num='Custom';
+    hz={mines:cust.mines&&PL>=UNLOCK.mines, strikes:cust.strikes&&PL>=UNLOCK.strikes};
+  } else {
+    diff=level; plan=levelPlan(level); curMap=mapFor(level); store.set('tank-level',level);
+    intro=level%5===0 ? 'Level '+level+': BOSS!' : 'Level '+level; if(level%5===1) intro2=curMap.name;
+    label=curMap.generated ? curMap.name+' (new map)' : curMap.name; num='Level '+level;
+    hz={mines:true,strikes:true};
+  }
+  const d=Math.min(diff,PLAYER_CAP);
+  // Your tank levels up too: more health, faster reload, and a free power-up from level 3.
+  // Past level 50 your tank keeps growing, so every level can be beaten (v38).
+  const up=Math.max(0, Math.min(diff,MAX_LEVEL)-PLAYER_CAP), upC=Math.min(up,2050);
+  const you = makeTank({type:TYPES[chosen], hp:130 + (d-1)*15 + upC*4, cool:Math.max(16, 34 - d - Math.floor(upC/100)), spd:1, aim:Math.min(.14, .07 + d*.003 + upC*.0001), dmg:1 + (d-1)*.05 + upC*.006}, PLAYER_SPAWN[0], PLAYER_SPAWN[1], 'you');
+  // upgrades bought in the shop: on for this whole battle, one battle used up
+  you.perks=new Set();
+  if(!fairMode() && chosen===MY_INDEX && my.bonus>1){ const kb=Math.min(2,my.bonus); you.hp=you.hpMax=Math.round(you.hp*kb); you.dmgMult*=kb; }   // special tank from a tank code
+  if(!fairMode()){ const pb=1+Math.min(playerLevel(),1000)*.003; you.hp=you.hpMax=Math.round(you.hp*pb); you.dmgMult*=pb; }   // player level makes your tank stronger too
+  if(mode==='duo'){ you.hp=you.hpMax=200; you.coolBase=28; you.aimRate=.12; you.dmgMult=1; you.label=net.role==='host'?'YOU':'PLAYER 1'; }
+  if(!fairMode()) for(const P of PERM){ if(playerLevel()>=P.at && (prog.perm||{})[P.id]!==false) you.perks.add(P.id); }
+  if(!fairMode()) for(const id of Object.keys(prog.perks)){ if(prog.perks[id]>0){ you.perks.add(id); prog.perks[id]--; } if(prog.perks[id]<=0) delete prog.perks[id]; }
+  saveProg();
+  if(superOn && !fairMode()){ const sl=Math.min(diff,MAX_LEVEL); you.hp=you.hpMax=999+Math.min(sl,5000)*40; you.dmgMult*=3+Math.min(sl,5000)*.01; you.coolBase=10; you.superT=true; you.label='SUPER'; }   // Super tank grows with the level
+  if(d>=3 && !fairMode()){ const pool=ABILITIES.filter(a=>a.id!=='repair'); you.power=pool[Math.floor(Math.random()*pool.length)]; you.powerT=Math.max(you.power.time+240, powerTime(you,you.power)); }
+  tanks = [you, ...plan.map((s,i)=>makeTank(s, BOT_SPAWNS[i][0], BOT_SPAWNS[i][1], 'bot'))];
+  // Bots fight back harder when your tank has lots of abilities switched on, and they get abilities of their own as levels go up.
+  if(!fairMode()){
+    const k=you.perks.size, hp=id=>you.perks.has(id), f=(hp('rapid')?3:1)*(hp('triple')?2:1)*(hp('big')?1.75:1)*(hp('giant')?2:1)*(hp('homing')?1.3:1)*(hp('freeze')?1.3:1)*(hp('bouncy')?1.1:1), lv=Math.min(diff,MAX_LEVEL), BOT_POOL=['rapid','homing','triple','big','speed','bouncy','giant','freeze'];
+    const nb=Math.min(BOT_POOL.length, Math.floor(lv/25));
+    tanks.forEach((t,i)=>{ if(t.team!=='bot') return;
+      t.hp=t.hpMax=Math.round(t.hp*Math.pow(f,0.45)*(hp('ghost')?2.6:1)*(hp('freeze')?1.8:1)); t.dmgMult*=1+0.08*k;
+      t.perks=new Set(); const pool=BOT_POOL.filter(id=>id!=='freeze'||lv>=60);
+      for(let n=0;n<Math.min(nb+(t.boss?1:0),pool.length);n++) t.perks.add(pool[(i*3+n+lv)%pool.length]);
+    });
+  }
+  if(mode==='duo' && duo.coop){   // teammate joins your side
+    const mate=makeTank({type:TYPES[duo.p2type], hp:200, cool:28, spd:1, aim:.12, dmg:1}, PLAYER_SPAWN[0], PLAYER_SPAWN[1]+90, 'you');
+    mate.label = net.role ? 'FRIEND' : 'PLAYER 2'; mate.perks=new Set();
+    you.y = PLAYER_SPAWN[1]-60; you.lastY=you.y;
+    tanks.splice(1,0,mate);
+  }
+  bullets=[]; sparks=[]; pickups=[]; floaters=[]; over=false;
+  WALL_LAYOUT = curMap.walls;
+  WALLS = WALL_LAYOUT.slice(); quiet = 0; crumbled = false; rebuildNav(); setupHazards();
+  if(mode==='duo') for(const t of tanks) pushOutOfWalls(t);
+  document.getElementById('banner').hidden = true; stopCountdown();
+  document.getElementById('lvlNum').textContent = num;
+  document.getElementById('mapName').textContent = label;
+  buildMaps();
+  document.getElementById('bestNum').textContent = best;
+  buildEnemies(); buildCards(); renderAdmin();
+  float(W/2, H/2, intro, '#ffffff', 110);
+  if(intro2) float(W/2, H/2+50, intro2, '#ffd23f', 110);
+  if(you.perks.size) float(W/2, H/2+100, 'Upgrades: '+[...you.perks].map(id=>ABILITIES.find(a=>a.id===id).name).join(', '), '#7fe3ff', 110);
+  renderProg();
+}
+
+const hasP = (t,id) => (t.power && t.power.id===id) || (t.perks && t.perks.has(id));
+const radiusOf = t => t.netR || t.baseR * (hasP(t,'giant') ? 1.6 : 1);
+function hitsWall(x,y,pad=0){
+  if(x<pad||y<pad||x>W-pad||y>H-pad) return true;
+  return WALLS.some(w=>x>w.x-pad&&x<w.x+w.w+pad&&y>w.y-pad&&y<w.y+w.h+pad);
+}
+function lineClear(x1,y1,x2,y2,pad=0){
+  const d=Math.hypot(x2-x1,y2-y1), n=Math.ceil(d/8);
+  for(let i=1;i<n;i++){ const t=i/n, x=x1+(x2-x1)*t, y=y1+(y2-y1)*t;
+    if(pad ? WALLS.some(w=>x>w.x-pad&&x<w.x+w.w+pad&&y>w.y-pad&&y<w.y+w.h+pad) : hitsWall(x,y)) return false; }
+  return true;
+}
+// Path finding: when a wall is in the way, drive to a corner point that can see the target.
+let NAV=[];
+function rebuildNav(){ NAV=[]; for(let x=40;x<W;x+=46) for(let y=40;y<H;y+=46) if(!hitsWall(x,y,30)) NAV.push({x,y}); }
+rebuildNav();
+function navAngle(me,tx,ty){
+  if(lineClear(me.x,me.y,tx,ty,14)) { me.navPt=null; return Math.atan2(ty-me.y,tx-me.x); }
+  if(!me.navT || --me.navT<=0 || !me.navPt || Math.hypot(me.navPt.x-me.x,me.navPt.y-me.y)<20){
+    me.navT=20; let best=null, bc=1e9;
+    for(const p of NAV){
+      const c=Math.hypot(p.x-me.x,p.y-me.y)+Math.hypot(tx-p.x,ty-p.y);
+      if(c<bc && lineClear(me.x,me.y,p.x,p.y,16) && lineClear(p.x,p.y,tx,ty)){ bc=c; best=p; }
+    }
+    me.navPt=best;
+  }
+  const p=me.navPt||{x:tx,y:ty};
+  return Math.atan2(p.y-me.y,p.x-me.x);
+}
+const foes = (me) => tanks.filter(o=>o!==me && o.alive && o.team!==me.team);
+
+function sense(me){
+  let enemy=null, radar=null;
+  for(const o of foes(me)){
+    if(hasP(o,'ghost') && Math.hypot(o.x-me.x,o.y-me.y)>200) continue;   // Ghost hides you, but not when an enemy is close
+    const dist=Math.hypot(o.x-me.x,o.y-me.y), angle=Math.atan2(o.y-me.y,o.x-me.x);
+    const tt=dist/8, lead=Math.atan2(o.y+(o.vy||0)*tt-me.y, o.x+(o.vx||0)*tt-me.x);
+    const info={dist,angle,lead,x:o.x,y:o.y};
+    if(!radar||dist<radar.dist) radar=info;
+    if(lineClear(me.x,me.y,o.x,o.y) && (!enemy||dist<enemy.dist)) enemy=info;
+  }
+  let pickup=null;
+  for(const p of pickups){
+    const dist=Math.hypot(p.x-me.x,p.y-me.y);
+    if(!pickup||dist<pickup.dist) pickup={dist,angle:Math.atan2(p.y-me.y,p.x-me.x)};
+  }
+  if(!enemy && radar) radar={dist:radar.dist, angle:navAngle(me,radar.x,radar.y)};
+  if(!enemy && pickup && (!radar || pickup.dist<radar.dist)) radar=pickup;
+  let danger=null;
+  for(const st of strikes) if(Math.hypot(st.x-me.x,st.y-me.y)<STRIKE_R+30) danger={angle:Math.atan2(me.y-st.y,me.x-st.x)};
+  let mine=null;
+  if(hasP(me,'shield')) for(const m of mines){ const d=Math.hypot(m.x-me.x,m.y-me.y); if(d<110 && (!mine||d<mine.dist)) mine={dist:d,angle:Math.atan2(m.y-me.y,m.x-me.x)}; }
+  return {enemy, radar, pickup, danger, mine, hurt:me.hurt};
+}
+
+function pushOutOfWalls(t){
+  const R = radiusOf(t);
+  t.x=clamp(t.x,R,W-R); t.y=clamp(t.y,R,H-R);
+  for(const w of WALLS){
+    const cx=clamp(t.x,w.x,w.x+w.w), cy=clamp(t.y,w.y,w.y+w.h);
+    const dx=t.x-cx, dy=t.y-cy, d=Math.hypot(dx,dy);
+    if(d<R){
+      if(d===0){ t.y = (t.y<w.y+w.h/2)? w.y-R : w.y+w.h+R; }
+      else { t.x=cx+dx/d*R; t.y=cy+dy/d*R; }
+    }
+  }
+}
+
+function dropAbility(x,y){
+  const ab = ABILITIES[Math.floor(Math.random()*ABILITIES.length)];
+  x=clamp(x,30,W-30); y=clamp(y,30,H-30);
+  // never put a power-up inside a wall: move it to the closest open spot
+  if(hitsWall(x,y,22)){
+    let best=null, bd=1e9;
+    for(let gx=30;gx<=W-30;gx+=10) for(let gy=30;gy<=H-30;gy+=10){
+      const d=Math.hypot(gx-x,gy-y); if(d<bd && !hitsWall(gx,gy,22)){ bd=d; best={x:gx,y:gy}; } }
+    if(best){ x=best.x; y=best.y; }
+  }
+  pickups.push({x,y,ab,age:0});
+}
+function float(x,y,text,col,life=70){ floaters.push({x,y,text,col,life,max:life}); }
+function burst(x,y,col,n){
+  for(let i=0;i<n;i++){ const a=Math.random()*TAU, s=Math.random()*3.5;
+    sparks.push({x,y,vx:Math.cos(a)*s,vy:Math.sin(a)*s,life:20+Math.random()*25,max:45,col,r:2+Math.random()*3}); }
+}
+
+function tick(){
+  if(over) return;
+  for(const t of tanks){
+    if(!t.alive) continue;
+    t.hurt++;
+    if(t.powerT>0 && --t.powerT<=0) t.power=null;
+    if(t.cool>0) t.cool--;
+    if(drag && drag.tank===t){ t.lastX=t.x; t.lastY=t.y; t.vx=0; t.vy=0; continue; }
+    if(t.iceCd>0) t.iceCd--;
+    if(t.frozen>0){ t.frozen--; continue; }
+    const has = id => hasP(t,id);
+    const s = sense(t);
+    let c = t.type.brain(t, s, t.mem) || {};
+    // Built-in rule: if a power-up is close, go grab it (still aiming and shooting).
+    if(!t.type.custom && s.pickup && s.pickup.dist<260 && (!s.enemy || s.pickup.dist<s.enemy.dist)){
+      c = {...c, drive:1, turn:Math.sign(angDiff(t.a,s.pickup.angle))};
+    }
+    // Built-in rules for bots: run out of an airstrike circle, steer around mines they can see.
+    if(!t.type.custom && s.danger) c = {...c, drive:1, turn:Math.sign(angDiff(t.a,s.danger.angle))};
+    else if(!t.type.custom && s.mine && s.mine.dist<70) c = {...c, drive:1, turn:Math.sign(angDiff(t.a,s.mine.angle+Math.PI))};
+    // Built-in rule: if stuck on a wall, back up and turn.
+    if(t.unstick>0){ t.unstick--; c={...c, drive:-.8, turn:1}; }
+    // Mouse mode: you drive your own tank with the mouse
+    const duoK = mode==='duo' ? (t===tanks[0] ? keys.p1 : t===tanks[1] ? keys.p2 : null) : null;
+    const manual = !!duoK || (!autoMove && t===tanks[0] && t.team==='you');
+    if(duoK){
+      c={ drive:(duoK.up?1:0)-(duoK.down?.7:0), turn:(duoK.right?1:0)-(duoK.left?1:0), aim: s.enemy ? s.enemy.angle : t.a, fire: duoK.fire };
+      t.unstick=0;
+    } else if(manual){
+      if(mouse.in){
+        const d=Math.hypot(mouse.x-t.x,mouse.y-t.y), want=Math.atan2(mouse.y-t.y,mouse.x-t.x), off=angDiff(t.a,want);
+        c={ drive: d<28 ? 0 : Math.abs(off)>1.6 ? .25 : 1, turn: Math.abs(off)<.06 ? 0 : Math.sign(off), aim: want, fire: mouse.down };
+      } else c={drive:0, turn:0, aim:t.turret, fire:false};
+      t.unstick=0;
+    }
+    const drive=clamp(c.drive||0,-1,1), turn=clamp(c.turn||0,-1,1);
+    const spd = 2.2 * t.spd * (has('speed') ? 1.6 : 1) * (t.boss ? .8 : 1);
+    t.a += turn*(has('speed')?0.07:0.05);
+    t.x += Math.cos(t.a)*drive*spd; t.y += Math.sin(t.a)*drive*spd;
+    pushOutOfWalls(t);
+    t.vx=t.x-t.lastX; t.vy=t.y-t.lastY;
+    const moved=Math.hypot(t.vx,t.vy);
+    if(!manual && Math.abs(drive)>.3 && moved<.4){ if(++t.stuck>25){ t.unstick=35; t.stuck=0; } } else t.stuck=0;
+    t.lastX=t.x; t.lastY=t.y;
+    // Built-in rule: aim where the enemy is going, not where it is.
+    if(!manual && typeof c.aim==='number' && s.enemy) c.aim = s.enemy.lead;
+    if(typeof c.aim==='number') t.turret += clamp(angDiff(t.turret,c.aim),-t.aimRate,t.aimRate);
+    // grab a power-up by driving over it
+    const R = radiusOf(t);
+    for(const p of pickups){
+      if(p.taken || Math.hypot(p.x-t.x,p.y-t.y)>R+14) continue;
+      p.taken=true;
+      document.body.dataset.grabs = (+document.body.dataset.grabs||0)+1;
+      if(p.ab.id==='repair'){ t.hp=Math.min(t.hpMax,t.hp+50); }
+      else { t.power=p.ab; t.powerT=powerTime(t,p.ab); }
+      float(t.x,t.y-R-24,p.ab.name+'!',p.ab.color);
+      burst(p.x,p.y,p.ab.color,16);
+    }
+    if(c.fire && t.cool<=0){
+      t.cool = Math.round(t.coolBase * (has('rapid') ? .33 : 1));
+      const bx=t.x+Math.cos(t.turret)*(R+10), by=t.y+Math.sin(t.turret)*(R+10);
+      const big = has('big') || t.boss;
+      const triple = has('triple') || t.triple;
+      const angles = triple ? [t.turret-.18, t.turret, t.turret+.18] : [t.turret];
+      const dmg = 20 * t.dmgMult * (has('big')?1.75:1) * (has('giant')?2:1);
+      for(const a of angles) bullets.push({x:bx,y:by,vx:Math.cos(a)*8,vy:Math.sin(a)*8,owner:t,life:150,dmg,
+        r: big?8:4, freeze:has('freeze'), homing:has('homing'), bounces:has('bouncy')?2:0});
+      for(let i=0;i<4;i++) sparks.push({x:bx,y:by,vx:Math.cos(t.turret)*2+(Math.random()-.5)*2,vy:Math.sin(t.turret)*2+(Math.random()-.5)*2,life:10,max:10,col:'#ffd27a',r:3});
+    }
+  }
+  // tanks bump each other
+  for(let i=0;i<tanks.length;i++) for(let j=i+1;j<tanks.length;j++){
+    const a=tanks[i], b=tanks[j]; if(!a.alive||!b.alive) continue;
+    const dx=b.x-a.x, dy=b.y-a.y, d=Math.hypot(dx,dy)||1, rr=radiusOf(a)+radiusOf(b);
+    if(d<rr){ const p=(rr-d)/2; a.x-=dx/d*p; a.y-=dy/d*p; b.x+=dx/d*p; b.y+=dy/d*p; pushOutOfWalls(a); pushOutOfWalls(b); }
+  }
+  for(const b of bullets){
+    if(b.homing){
+      let best=null, bd=1e9;
+      for(const o of foes(b.owner)){ const d=Math.hypot(o.x-b.x,o.y-b.y); if(d<bd){bd=d;best=o;} }
+      if(best){ const sp=Math.hypot(b.vx,b.vy), a=Math.atan2(b.vy,b.vx);
+        const na = a + clamp(angDiff(a,Math.atan2(best.y-b.y,best.x-b.x)),-.06,.06);
+        b.vx=Math.cos(na)*sp; b.vy=Math.sin(na)*sp; }
+    }
+    const ox=b.x, oy=b.y;
+    b.x+=b.vx; b.y+=b.vy; b.life--;
+    if(hitsWall(b.x,b.y)){
+      if(b.bounces>0){
+        b.bounces--;
+        if(hitsWall(ox+b.vx,oy)) b.vx=-b.vx; else b.vy=-b.vy;
+        b.x=ox; b.y=oy; burst(b.x,b.y,'#ffd23f',3);
+      } else { b.life=0; burst(b.x,b.y,'#e8d9a8',5); }
+      continue;
+    }
+    for(const t of foes(b.owner)){
+      if(Math.hypot(t.x-b.x,t.y-b.y)<radiusOf(t)+b.r-1){
+        b.life=0;
+        if(hasP(t,'shield')){ burst(b.x,b.y,'#4fa3ff',10); break; }
+        t.hp-=b.dmg; t.hurt=0; quiet=0; burst(b.x,b.y,'#ffb347',8);
+        if(b.freeze && !(t.iceCd>0) && !t.superT){ t.frozen=t.boss?40:60; t.iceCd=t.frozen+90; burst(t.x,t.y,'#7fe3ff',10); }   // can't be frozen again right away
+        if(t.hp<=0){
+          t.alive=false; t.hp=0; t.power=null; burst(t.x,t.y,'#ff7a2f',40); burst(t.x,t.y,'#555',25);
+          dropAbility(t.x,t.y);
+        }
+        break;
+      }
+    }
+  }
+  bullets=bullets.filter(b=>b.life>0);
+  hazardsTick();
+  pickups=pickups.filter(p=>!p.taken);
+  for(const p of pickups) p.age++;
+  // Safety rule: if nobody gets hit for 12 seconds, the walls crumble so everyone has to fight.
+  if(crumbled && ++quiet > 720){
+    quiet = 0;
+    const hom = ABILITIES.find(a=>a.id==='homing');
+    for(const t of tanks) if(t.alive){ t.power=hom; t.powerT=600; }
+    float(W/2, H/2, 'Homing for everyone!', '#ff5a5a', 110);
+  }
+  if(!crumbled && ++quiet > 720){
+    crumbled = true;
+    for(const w of WALLS) for(let k=0;k<8;k++) burst(w.x+Math.random()*w.w, w.y+Math.random()*w.h, '#857862', 4);
+    WALLS = [];
+    float(W/2, H/2, 'Walls crumble!', '#ffd23f', 110);
+  }
+  checkEnd();
+}
+
+function checkEnd(){
+  const you = tanks[0];
+  const botsLeft = tanks.filter(t=>t.team==='bot'&&t.alive).length;
+  const teamAlive = tanks.some(t=>t.team==='you'&&t.alive);
+  if(mode==='duo' && duo.coop){ if(teamAlive && botsLeft>0) return; }
+  else if(you.alive && botsLeft>0) return;
+  over = true;
+  const text=document.getElementById('bannerText'), sub=document.getElementById('bannerSub'), btn=document.getElementById('nextBtn');
+  if(mode==='tour'){
+    const T=TIERS[tour.tier];
+    if(you.alive && tour.round<3){ award(15); text.textContent='Round '+tour.round+' won!'; sub.textContent='+15 points. Next: round '+(tour.round+1)+(tour.round+1===3?', the Champion boss!':'.'); btn.textContent='Next round'; btn.dataset.next='tround'; }
+    else if(you.alive){ prog.cups[tour.tier]=(prog.cups[tour.tier]||0)+1; award(T.prize); text.textContent=T.name+' won!'; sub.textContent='Champion! +'+T.prize+' points.'; btn.textContent='Back to the levels'; btn.dataset.next='campaign'; }
+    else { text.textContent='Knocked out in round '+tour.round; sub.textContent='Try the '+T.name+' again from round 1.'; btn.textContent='Try again'; btn.dataset.next='trestart'; }
+  } else if(mode==='duo' && duo.coop){
+    if(botsLeft===0){ text.textContent='TEAM WINS! Team level '+duo.lvl+' cleared!'; sub.textContent='Next: team level '+(duo.lvl+1)+(duo.lvl%5===4?', a BOSS!':'.'); btn.textContent='Next team level'; btn.dataset.next='coopup'; }
+    else { text.textContent='Both tanks destroyed'; sub.textContent='Try team level '+duo.lvl+' again together.'; btn.textContent='Try again'; btn.dataset.next='retry'; }
+  } else if(mode==='duo'){
+    if(you.alive) duo.p1++; else duo.p2++;
+    text.textContent = you.alive ? (net.role==='host'?'YOU WIN!':'PLAYER 1 WINS!') : (net.role==='host'?'YOUR FRIEND WINS!':'PLAYER 2 WINS!');
+    sub.textContent = 'Score: Player 1 '+duo.p1+' – '+duo.p2+' Player 2';
+    btn.textContent='Rematch'; btn.dataset.next='retry';
+  } else if(mode==='online'){
+    if(you.alive){ award(20); text.textContent='You beat '+online.opp.name+'!'; sub.textContent='+20 points.'; }
+    else { text.textContent=online.opp.name+' won'; sub.textContent='Change your rules and try a rematch.'; }
+    btn.textContent='Rematch'; btn.dataset.next='retry';
+  } else if(mode==='custom'){
+    if(you.alive){ award(5); text.textContent='You win!'; sub.textContent='+5 points. Change the battle below or play it again.'; }
+    else { text.textContent='You lost'; sub.textContent='Change the battle below or try again.'; }
+    btn.textContent='Play again'; btn.dataset.next='retry';
+  } else if(you.alive){
+    const first301 = level===301 && !store.get('tank-beat301',false);
+    if(level===301) store.set('tank-beat301',true);
+    award(10+Math.min(level,1000)*2);
+    text.textContent = 'Level '+level+' cleared!';
+    const next = level+1;
+    sub.textContent = level===FINAL_LEVEL ? 'You beat all '+MAPS.length+' maps! From now on the game builds a brand new map every 5 levels.'
+      : next%5===0 ? 'Next up: a BOSS tank. Get ready.'
+      : next%5===1 ? (mapFor(next).generated ? 'The game built a new map: ' : 'New map unlocked: ')+mapFor(next).name+'!'
+      : 'Next level has tougher bots.';
+    sub.textContent += ' +'+(10+Math.min(level,1000)*2)+' points.';
+    if(first301){ text.textContent='YOU BEAT THE HARDEST LEVEL!'; sub.textContent='Super tank is now in the upgrade shop for '+SUPER_COST.toLocaleString()+' points!'; }
+    btn.textContent = 'Go to level '+next;
+    btn.dataset.next = 'up';
+    if(next>best){ best=next; store.set('tank-best',best); document.getElementById('bestNum').textContent=best; }
+    if(level>=MAX_LEVEL){ text.textContent='YOU BEAT TANK BATTLES 1!'; sub.textContent='You cleared all '+MAX_LEVEL.toLocaleString()+' levels. You are a legend!'; btn.textContent='Play level '+MAX_LEVEL.toLocaleString()+' again'; btn.dataset.next='retry'; }
+  } else {
+    text.textContent = 'Your tank was destroyed';
+    sub.textContent = 'Try level '+level+' again, or pick a different tank below.';
+    btn.textContent = 'Try again';
+    btn.dataset.next = 'retry';
+  }
+  document.getElementById('banner').hidden=false; startCountdown();
+}
+
+
+// ---------- Hazards: hidden land mines, airstrikes, weak walls ----------
+let mines=[], strikes=[], weak=new Set(), nextStrike=600;
+const STRIKE_R=75;
+function setupHazards(){
+  mines=[]; strikes=[]; nextStrike=240+Math.random()*180;
+  weak=new Set(WALLS.slice().sort(()=>Math.random()-.5).slice(0,2));
+  const n=hz.mines ? Math.min(8, 3+Math.floor(diff/2)) : 0;
+  const spots=NAV.filter(p=>Math.hypot(p.x-PLAYER_SPAWN[0],p.y-PLAYER_SPAWN[1])>160 && BOT_SPAWNS.every(b=>Math.hypot(p.x-b[0],p.y-b[1])>110));
+  for(let i=0;i<n && spots.length;i++){ const k=Math.floor(Math.random()*spots.length); const sp=spots.splice(k,1)[0];
+    mines.push({x:sp.x+(Math.random()-.5)*30, y:sp.y+(Math.random()-.5)*30}); }
+}
+function damage(t, dmg, x, y){
+  if(!t.alive) return;
+  if(hasP(t,'shield')){ burst(x,y,'#4fa3ff',12); return; }
+  t.hp-=dmg; t.hurt=0; quiet=0; burst(x,y,'#ffb347',10);
+  if(t.hp<=0){ t.alive=false; t.hp=0; t.power=null; burst(t.x,t.y,'#ff7a2f',40); burst(t.x,t.y,'#555',25); dropAbility(t.x,t.y); }
+}
+function boom(x,y,r,col){ for(let i=0;i<50;i++){ const a=Math.random()*TAU, d=Math.random()*r*.6; burst(x+Math.cos(a)*d, y+Math.sin(a)*d, i%3?col:'#555', 1); } }
+function hazardsTick(){
+  // mines: drive over one and it explodes
+  for(const m of mines){
+    if(m.gone) continue;
+    for(const t of tanks){ if(t.alive && Math.hypot(t.x-m.x,t.y-m.y)<radiusOf(t)+6){
+      m.gone=true; boom(m.x,m.y,60,'#ff5a1f'); float(m.x,m.y-30,'MINE!','#ff5a1f');
+      for(const o of tanks) if(o.alive && Math.hypot(o.x-m.x,o.y-m.y)<50) damage(o,35,o.x,o.y);
+      break; } }
+  }
+  mines=mines.filter(m=>!m.gone);
+  // airstrikes
+  if(hz.strikes && --nextStrike<=0){
+    nextStrike=360+Math.random()*300;
+    const w=[...weak].filter(w=>WALLS.includes(w));
+    let x,y;
+    if(w.length && Math.random()<.6){ const ww=w[Math.floor(Math.random()*w.length)]; x=ww.x+ww.w/2; y=ww.y+ww.h/2; }
+    else { x=60+Math.random()*(W-120); y=60+Math.random()*(H-120); }
+    const supply=Math.random()<.3;
+    if(supply && hitsWall(x,y,22)){ const free=NAV[Math.floor(Math.random()*NAV.length)]; if(free){ x=free.x; y=free.y; } }
+    strikes.push({x,y,t:150,max:150,supply});
+  }
+  for(const st of strikes){
+    if(--st.t>0) continue;
+    st.done=true;
+    if(st.supply){
+      dropAbility(st.x,st.y); const pk=pickups[pickups.length-1]; float(pk.x,pk.y-34,'Supply drop!','#3fbf4f'); burst(pk.x,pk.y,'#c8a96b',14);
+    } else {
+      boom(st.x,st.y,STRIKE_R*1.6,'#ff7a2f'); float(st.x,st.y-40,'AIRSTRIKE!','#ff7a2f');
+      for(const t of tanks) if(t.alive && Math.hypot(t.x-st.x,t.y-st.y)<STRIKE_R+radiusOf(t)) damage(t,30,t.x,t.y);
+      const before=WALLS.length;
+      WALLS=WALLS.filter(w=>{ const cx=clamp(st.x,w.x,w.x+w.w), cy=clamp(st.y,w.y,w.y+w.h);
+        if(weak.has(w) && Math.hypot(st.x-cx,st.y-cy)<STRIKE_R){ for(let k=0;k<10;k++) burst(w.x+Math.random()*w.w,w.y+Math.random()*w.h,'#857862',4); return false; } return true; });
+      if(WALLS.length!==before){ rebuildNav(); for(const t of tanks) t.navPt=null; }
+      for(const m of mines) if(Math.hypot(m.x-st.x,m.y-st.y)<STRIKE_R){ m.gone=true; boom(m.x,m.y,40,'#ff5a1f'); }
+    }
+  }
+  strikes=strikes.filter(s=>!s.done);
+}
+function drawHazards(){
+  const you=tanks[0];
+  if(you && you.alive && hasP(you,'shield')){
+    for(const m of mines){
+      ctx.fillStyle='#2b2b2b'; ctx.beginPath(); ctx.arc(m.x,m.y,9,0,TAU); ctx.fill();
+      ctx.fillStyle='#e0402c'; ctx.beginPath(); ctx.arc(m.x,m.y,4,0,TAU); ctx.fill();
+      ctx.strokeStyle='#4fa3ff'; ctx.lineWidth=2; ctx.beginPath(); ctx.arc(m.x,m.y,14,0,TAU); ctx.stroke();
+    }
+  }
+  for(const st of strikes){
+    const f=st.t/st.max, pulse=.5+.5*Math.sin(st.t*.3);
+    ctx.save(); ctx.translate(st.x,st.y);
+    ctx.strokeStyle='#e0402c'; ctx.globalAlpha=.5+.4*pulse; ctx.lineWidth=3; ctx.setLineDash([10,8]);
+    ctx.beginPath(); ctx.arc(0,0,STRIKE_R,0,TAU); ctx.stroke(); ctx.setLineDash([]);
+    ctx.beginPath(); ctx.arc(0,0,STRIKE_R*f,0,TAU); ctx.stroke();
+    ctx.beginPath(); ctx.moveTo(-18,0); ctx.lineTo(18,0); ctx.moveTo(0,-18); ctx.lineTo(0,18); ctx.stroke();
+    ctx.restore(); ctx.globalAlpha=1;
+    if(st.t<50){ // plane shadow flies over
+      const px=st.x-260+(1-st.t/50)*520, py=st.y-40;
+      ctx.fillStyle='#0006'; ctx.beginPath(); ctx.moveTo(px+34,py); ctx.lineTo(px-22,py-26); ctx.lineTo(px-10,py); ctx.lineTo(px-22,py+26); ctx.closePath(); ctx.fill();
+      if(st.supply && st.t<30){ // parachute crate
+        const cy=st.y-(st.t/30)*60;
+        ctx.strokeStyle='#fff'; ctx.lineWidth=1.5; ctx.beginPath(); ctx.moveTo(st.x-14,cy-26); ctx.lineTo(st.x,cy); ctx.lineTo(st.x+14,cy-26); ctx.stroke();
+        ctx.fillStyle='#f2f2f2'; ctx.beginPath(); ctx.arc(st.x,cy-26,16,Math.PI,0); ctx.fill();
+        ctx.fillStyle='#c8a96b'; ctx.fillRect(st.x-9,cy-6,18,14);
+      }
+    }
+  }
+}
+
+// ---------- Drawing ----------
+function css(name){ return getComputedStyle(document.documentElement).getPropertyValue(name).trim(); }
+function draw(){
+  const mp=curMap;
+  const ground=mp.ground||css('--ground'), grid=mp.grid||css('--ground-grid'), wall=mp.wall||css('--wall'), wallTop=mp.top||css('--wall-top');
+  ctx.fillStyle=ground; ctx.fillRect(0,0,W,H);
+  ctx.strokeStyle=grid; ctx.lineWidth=1;
+  for(let x=40;x<W;x+=40){ctx.beginPath();ctx.moveTo(x,0);ctx.lineTo(x,H);ctx.stroke();}
+  for(let y=40;y<H;y+=40){ctx.beginPath();ctx.moveTo(0,y);ctx.lineTo(W,y);ctx.stroke();}
+  for(const w of WALLS){ ctx.fillStyle=wall; ctx.fillRect(w.x,w.y,w.w,w.h); ctx.fillStyle=wallTop; ctx.fillRect(w.x+3,w.y+3,w.w-6,w.h-6);
+    if(weak.has(w)){ // weak walls are cracked
+      ctx.strokeStyle='#2b2b2b'; ctx.lineWidth=2; ctx.beginPath();
+      const L=Math.max(w.w,w.h), hz=w.w>w.h;
+      for(let k=1;k<4;k++){ const q=k*L/4, z=k%2?6:-6; if(hz){ ctx.moveTo(w.x+q-8,w.y+4); ctx.lineTo(w.x+q+z,w.y+w.h/2); ctx.lineTo(w.x+q-4,w.y+w.h-4); } else { ctx.moveTo(w.x+4,w.y+q-8); ctx.lineTo(w.x+w.w/2,w.y+q+z); ctx.lineTo(w.x+w.w-4,w.y+q-4); } }
+      ctx.stroke(); } }
+  for(const t of tanks){ if(!t.alive){ ctx.fillStyle='#00000055'; ctx.beginPath(); ctx.arc(t.x,t.y,t.baseR+4,0,TAU); ctx.fill(); } }
+  for(const p of pickups) drawPickup(p);
+  drawHazards();
+  for(const t of tanks){ if(t.alive) drawTank(t); }
+  for(const b of bullets){
+    ctx.fillStyle = b.freeze ? '#7fe3ff' : b.homing ? '#ff5a5a' : b.r>4 ? b.owner.type.color : '#1b1b1b';
+    ctx.beginPath(); ctx.arc(b.x,b.y,b.r,0,TAU); ctx.fill();
+  }
+  for(const s of sparks){ ctx.globalAlpha=Math.max(0,s.life/s.max); ctx.fillStyle=s.col; ctx.beginPath(); ctx.arc(s.x,s.y,s.r,0,TAU); ctx.fill(); }
+  ctx.globalAlpha=1;
+  ctx.textAlign='center';
+  for(const f of floaters){
+    const big = f.max>80;
+    ctx.font = big ? '400 54px "Black Ops One", Impact, sans-serif' : '700 15px Inter, system-ui, sans-serif';
+    ctx.globalAlpha=Math.min(1,f.life/30); ctx.fillStyle='#000a'; ctx.fillText(f.text,f.x+2,f.y+2); ctx.fillStyle=f.col; ctx.fillText(f.text,f.x,f.y);
+  }
+  ctx.globalAlpha=1;
+}
+function drawPickup(p){
+  const bob=Math.sin(p.age*0.08)*3, pulse=1+Math.sin(p.age*0.15)*0.08;
+  ctx.save(); ctx.translate(p.x,p.y+bob);
+  ctx.fillStyle=p.ab.color; ctx.globalAlpha=.3; ctx.beginPath(); ctx.arc(0,0,22*pulse,0,TAU); ctx.fill();
+  ctx.globalAlpha=1; ctx.beginPath(); ctx.arc(0,0,15,0,TAU); ctx.fill();
+  ctx.strokeStyle='#fff'; ctx.lineWidth=2.5; ctx.stroke();
+  ctx.fillStyle='#fff'; ctx.font='700 11px Inter, system-ui, sans-serif'; ctx.textAlign='center'; ctx.textBaseline='middle';
+  ctx.fillText(p.ab.label,0,1); ctx.textBaseline='alphabetic';
+  ctx.restore();
+}
+function drawTank(t){
+  const R = radiusOf(t), ghost = hasP(t,'ghost');
+  if(ghost) ctx.globalAlpha = .4;
+  if(t.team==='you'){ ctx.fillStyle='#ffffff55'; ctx.beginPath(); ctx.arc(t.x,t.y,R+6,0,TAU); ctx.fill(); }
+  ctx.save(); ctx.translate(t.x,t.y);
+  ctx.save(); ctx.rotate(t.a);
+  ctx.fillStyle='#2b2b2b'; ctx.fillRect(-R,-R,R*2,R*.45); ctx.fillRect(-R,R-R*.45,R*2,R*.45);
+  ctx.fillStyle=t.type.color; ctx.fillRect(-R+2,-R+R*.33,R*2-4,R*2-R*.66);
+  if(t.boss){ ctx.fillStyle='#c62828'; ctx.fillRect(-R+6,-4,R*2-12,8); }
+  ctx.restore();
+  ctx.rotate(t.turret);
+  ctx.fillStyle='#222'; ctx.fillRect(0,-R*.17,R*1.65,R*.34);
+  ctx.fillStyle=t.boss?'#c62828':t.type.color; ctx.strokeStyle='#0006'; ctx.lineWidth=2;
+  ctx.beginPath(); ctx.arc(0,0,R*.5,0,TAU); ctx.fill(); ctx.stroke();
+  ctx.restore();
+  ctx.globalAlpha=1;
+  if(t.perks && t.perks.size){ ctx.strokeStyle='#ffd23f'; ctx.lineWidth=2; ctx.setLineDash([4,5]); ctx.beginPath(); ctx.arc(t.x,t.y,R+14,0,TAU); ctx.stroke(); ctx.setLineDash([]); }
+  if(t.frozen>0){ ctx.strokeStyle='#7fe3ff'; ctx.lineWidth=5; ctx.globalAlpha=.8; ctx.beginPath(); ctx.arc(t.x,t.y,R+5,0,TAU); ctx.stroke(); ctx.globalAlpha=1; }
+  if(t.power){
+    const blink = t.powerT<90 && Math.floor(t.powerT/8)%2===0;
+    if(!blink){
+      ctx.strokeStyle=t.power.color; ctx.lineWidth=t.power.id==='shield'?4:2.5;
+      ctx.globalAlpha=t.power.id==='shield'?.85:.6;
+      ctx.beginPath(); ctx.arc(t.x,t.y,R+9,0,TAU); ctx.stroke(); ctx.globalAlpha=1;
+    }
+  }
+  const bw = t.boss ? 70 : 44;
+  ctx.fillStyle='#0005'; ctx.fillRect(t.x-bw/2,t.y-R-14,bw,6);
+  const f=t.hp/t.hpMax;
+  ctx.fillStyle=f>.5?'#3fbf4f':f>.2?'#e3b324':'#e0402c'; ctx.fillRect(t.x-bw/2,t.y-R-14,bw*f,6);
+  ctx.font='600 12px Inter, system-ui, sans-serif'; ctx.textAlign='center';
+  ctx.fillStyle='#000a'; ctx.fillText(t.label,t.x+1,t.y+R+17); ctx.fillStyle=t.team==='you'?'#fff36b':'#fff'; ctx.fillText(t.label,t.x,t.y+R+16);
+}
+
+// ---------- Panels ----------
+const cards=document.getElementById('cards'), enemiesEl=document.getElementById('enemies');
+const esc = v => String(v).replace(/[&<>"']/g, ch=>({'&':'&amp;','<':'&lt;','>':'&gt;','"':'&quot;',"'":'&#39;'}[ch]));
+function buildCards(){
+  cards.innerHTML='';
+  TYPES.forEach((T,i)=>{
+    const el=document.createElement('button'); el.type='button'; el.className='card'; el.id='pick-'+i;
+    el.setAttribute('aria-pressed', i===chosen);
+    el.innerHTML=`<div class="card-top"><span class="swatch" style="background:${T.color}"></span><span class="name">${esc(T.name)}</span><span class="tag">${i===chosen?'Your tank':''}</span></div>
+      ${i===chosen?'<div class="hp"><i style="background:'+T.color+'"></i></div><div class="power"></div>':''}
+      <ul class="rules">${T.rules.map(r=>`<li><b>${r[0]}</b> ${esc(r[1])}</li>`).join('')}</ul>`;
+    el.onclick=()=>{ chosen=i; store.set('tank-choice',i); buildCards(); };
+    cards.appendChild(el);
+  });
+}
+function buildEnemies(){
+  enemiesEl.innerHTML='';
+  tanks.forEach((t,i)=>{ if(t.team!=='bot') return;
+    const el=document.createElement('div'); el.className='enemy'; el.dataset.i=i;
+    el.innerHTML=`<span class="swatch" style="background:${t.type.color}"></span><span>${esc(t.label)}</span><div class="hp"><i style="background:${t.boss?'#c62828':t.type.color}"></i></div>`;
+    enemiesEl.appendChild(el);
+  });
+}
+function updatePanels(){
+  for(const el of enemiesEl.children){
+    const t=tanks[+el.dataset.i]; el.classList.toggle('dead',!t.alive);
+    el.querySelector('i').style.width=(100*t.hp/t.hpMax)+'%';
+  }
+  const you=tanks[0], card=document.getElementById('pick-'+chosen);
+  if(card && you && you.type===TYPES[chosen]){
+    const bar=card.querySelector('.hp i'); if(bar) bar.style.width=(100*you.hp/you.hpMax)+'%';
+    const pw=card.querySelector('.power'), p=you.alive&&you.power;
+    const txt = p ? p.name+' · '+Math.ceil(you.powerT/60)+'s' : '';
+    if(pw && pw.textContent!==txt){ pw.textContent=txt; pw.style.background=p?p.color:''; }
+  }
+}
+document.getElementById('legend').innerHTML = ABILITIES.map(a=>`<li><span class="chip" style="background:${a.color}">${a.label}</span><span><b>${a.name}</b>: ${a.desc}</span></li>`).join('');
+
+// ---------- Grab and move tanks and walls with the mouse (or a finger) ----------
+let drag=null;
+function toArena(e){ const r=cv.getBoundingClientRect(); return {x:(e.clientX-r.left)*W/r.width, y:(e.clientY-r.top)*H/r.height}; }
+function grabAt(x,y){
+  for(const t of tanks) if(t.alive && Math.hypot(t.x-x,t.y-y)<radiusOf(t)+8) return {tank:t, dx:t.x-x, dy:t.y-y};
+  for(const w of WALLS) if(x>w.x-6&&x<w.x+w.w+6&&y>w.y-6&&y<w.y+w.h+6) return {wall:w, dx:w.x-x, dy:w.y-y};
+  return null;
+}
+// Mouse mode state
+let autoMove = store.get('tank-automove', true);
+const mouse = {x:0, y:0, in:false, down:false};
+const moveBtn=document.getElementById('moveBtn');
+function showMove(){ moveBtn.setAttribute('aria-pressed', autoMove); moveBtn.textContent='Auto move: '+(autoMove?'on':'off'); document.getElementById('mouseHint').hidden=autoMove; cv.style.cursor = autoMove ? 'default' : 'crosshair'; cv.style.touchAction = autoMove ? '' : 'none'; }
+moveBtn.onclick=()=>{ autoMove=!autoMove; store.set('tank-automove',autoMove); mouse.down=false; showMove(); };
+showMove();
+cv.addEventListener('pointerenter',e=>{ const p=toArena(e); mouse.x=p.x; mouse.y=p.y; mouse.in=true; });
+cv.addEventListener('pointerleave',()=>{ mouse.in=false; mouse.down=false; });
+cv.addEventListener('pointerdown',e=>{
+  if(!autoMove){ const p=toArena(e); mouse.x=p.x; mouse.y=p.y; mouse.in=true; mouse.down=true; cv.setPointerCapture(e.pointerId); e.preventDefault(); return; }
+  if(!isAdmin) return;   // only admins can move things
+  const p=toArena(e); drag=grabAt(p.x,p.y);
+  if(drag && drag.tank){ const i=tanks.indexOf(drag.tank); if(i>=0){ admSel.value=i; renderAdmin(); } }
+  if(drag){ cv.setPointerCapture(e.pointerId); cv.style.cursor='grabbing'; e.preventDefault(); }
+});
+cv.addEventListener('pointermove',e=>{
+  const p=toArena(e);
+  mouse.x=p.x; mouse.y=p.y; mouse.in = p.x>=0&&p.y>=0&&p.x<=W&&p.y<=H;
+  if(!autoMove) return;
+  if(!drag){ cv.style.cursor = isAdmin && grabAt(p.x,p.y) ? 'grab' : 'default'; return; }
+  if(drag.tank){ const t=drag.tank; t.x=clamp(p.x+drag.dx,20,W-20); t.y=clamp(p.y+drag.dy,20,H-20); t.navPt=null; t.unstick=0; t.stuck=0; }
+  else { const w=drag.wall; w.x=clamp(p.x+drag.dx,0,W-w.w); w.y=clamp(p.y+drag.dy,0,H-w.h); }
+});
+function drop(){
+  if(!drag) return;
+  if(drag.tank) pushOutOfWalls(drag.tank);
+  if(drag.wall){ rebuildNav(); for(const t of tanks) if(t.alive){ pushOutOfWalls(t); t.navPt=null; } }
+  drag=null; cv.style.cursor='default';
+}
+cv.addEventListener('pointerup',e=>{ mouse.down=false; if(e.pointerType!=='mouse') mouse.in=false; drop(); }); cv.addEventListener('pointercancel',()=>{ mouse.down=false; mouse.in=false; drop(); });
+document.getElementById('resetWallsBtn').onclick=()=>{
+  const mp=curMap; WALL_LAYOUT.forEach((w,i)=>Object.assign(w,mp.start[i]));
+  if(!crumbled) WALLS=WALL_LAYOUT.slice();
+  rebuildNav(); for(const t of tanks) if(t.alive) pushOutOfWalls(t);
+};
+
+// ---------- Map picker: jump to any map you've reached ----------
+function buildMaps(){
+  const box=document.getElementById('maps'); box.innerHTML='';
+  MAPS.forEach((m,i)=>{
+    const first=i*5+1, b=document.createElement('button'); b.type='button'; b.className='mapbtn';
+    const unlocked = best>=first;
+    b.disabled=!unlocked;
+    b.setAttribute('aria-current', mode==='campaign' && mapFor(level)===m && level<=FINAL_LEVEL);
+    b.innerHTML=`<span class="sw" style="background:${m.ground||'var(--ground)'}"></span><b>${m.name}</b><small>${unlocked?'Levels '+first+'–'+(first+4):'Locked: reach level '+first}</small>`;
+    b.onclick=()=>{ mode='campaign'; level=first; startLevel(); };
+    box.appendChild(b);
+  });
+  // AI maps you have reached
+  const ai=document.getElementById('aiMaps'); ai.innerHTML='';
+  const lastIdx=Math.floor((best-1)/5);
+  for(let i=Math.max(MAPS.length,lastIdx-29);i<=lastIdx;i++){
+    const m=genMap(i), first=i*5+1, b=document.createElement('button'); b.type='button'; b.className='mapbtn';
+    b.setAttribute('aria-current', mode==='campaign' && level>=first && level<=first+4);
+    b.innerHTML=`<span class="sw" style="background:${m.ground}"></span><b>${esc(m.name)}</b><small>Levels ${first}–${first+4}</small>`;
+    b.onclick=()=>{ mode='campaign'; level=first; startLevel(); };
+    ai.appendChild(b);
+  }
+  document.getElementById('aiBox').hidden = lastIdx<MAPS.length;
+  // pick any level you have reached
+  const sel=document.getElementById('lvlPick'); sel.innerHTML='';
+  for(let L=Math.max(1,best-299);L<=best;L++){ const o=document.createElement('option'); o.value=L; o.textContent='Level '+L+' · '+mapFor(L).name+(L%5===0?' (boss)':''); sel.appendChild(o); }
+  if(best>300){ const o=document.createElement('option'); o.value='type'; o.textContent='Type a level number…'; sel.prepend(o); }
+  sel.value = mode==='campaign' && level>best-300 ? level : best;
+  const ti=document.getElementById('lvlType'); ti.max=best; ti.hidden=sel.value!=='type';
+  sel.onchange=()=>{ ti.hidden=sel.value!=='type'; if(!ti.hidden) ti.focus(); };
+}
+document.getElementById('lvlGo').onclick=()=>{ let v=document.getElementById('lvlPick').value;
+  if(v==='type'){ const n=parseInt(document.getElementById('lvlType').value,10); if(!n){ document.getElementById('lvlType').focus(); return; } v=Math.max(1,Math.min(best,n)); }
+  mode='campaign'; level=Math.min(MAX_LEVEL,+v||1); startLevel(); document.querySelector('.field').scrollIntoView({behavior:'smooth',block:'start'}); };
+
+// ---------- Auto start: 5 second countdown after each battle ----------
+let autoStart = store.get('tank-auto', true), countLeft = 0, countTimer = null;
+const autoBtn=document.getElementById('autoBtn'), cdEl=document.getElementById('countdown'), stopAutoBtn=document.getElementById('stopAuto');
+function showAuto(){ autoBtn.setAttribute('aria-pressed', autoStart); autoBtn.textContent = 'Auto start: '+(autoStart?'on':'off'); }
+function stopCountdown(){ clearInterval(countTimer); countTimer=null; cdEl.textContent=''; stopAutoBtn.hidden=true; }
+function startCountdown(){
+  stopCountdown();
+  if(!autoStart) return;
+  countLeft=5; cdEl.textContent='Starting in '+countLeft+'…'; stopAutoBtn.hidden=false;
+  countTimer=setInterval(()=>{
+    if(paused) return;
+    countLeft--;
+    if(countLeft<=0){ stopCountdown(); document.getElementById('nextBtn').click(); }
+    else cdEl.textContent='Starting in '+countLeft+'…';
+  },1000);
+}
+function setAuto(on){ autoStart=on; store.set('tank-auto',on); showAuto(); if(!on) stopCountdown(); else if(over) startCountdown(); }
+autoBtn.onclick=()=>setAuto(!autoStart);
+stopAutoBtn.onclick=()=>setAuto(false);
+showAuto(); stopAutoBtn.hidden=true;
+
+// ---------- Secret codes (Liam hands these out). Codes are stored only as hashes. ----------
+const hashCode = str => { let x=0x811c9dc5; for(const c of new TextEncoder().encode(str)){ x^=c; x=Math.imul(x,0x01000193)>>>0; } return x.toString(16).padStart(8,'0'); };
+let superOn = store.get('tank-super', false);
+prog.codes = prog.codes || [];
+const CODES = {
+  'cda0354f': { once:false, run(){ superOn=true; store.set('tank-super',true); showSuper(); return 'Super tank unlocked! Huge health that grows with the level, triple damage, super fast shooting. Starts next battle.'; } },
+  '3c591f7f': { once:true,  run(){ prog.xp+=500; prog.points+=500; saveProg(); renderProg(); return '+500 points!'; } },
+  '1533dbcf': { once:true,  run(){ const need=xpFor(MAX_PL); if(prog.xp<need){ prog.points+=Math.max(0,LVL_XP[LVL_XP.length-1]-prog.xp); prog.xp=need; } saveProg(); renderProg(); return 'Everything unlocked: max player level!'; } },
+  '14d199d8': { once:true,  run(){ for(const id of Object.keys(SHOP)) prog.perks[id]=(prog.perks[id]||0)+3; saveProg(); renderProg(); return 'Every upgrade for your next 3 battles!'; } },
+};
+const superBtn=document.getElementById('superBtn');
+function showSuper(){ superBtn.hidden=!store.get('tank-super-owned',false) && !superOn; superBtn.textContent='Super tank: '+(superOn?'on':'off'); superBtn.setAttribute('aria-pressed',superOn); }
+superBtn.onclick=()=>{ superOn=!superOn; store.set('tank-super',superOn); showSuper(); };
+document.getElementById('codeForm').addEventListener('submit',e=>{
+  e.preventDefault();
+  const inp=document.getElementById('codeIn'), msg=document.getElementById('codeMsg');
+  const h=hashCode(inp.value.trim().toUpperCase()), c=CODES[h];
+  if(!c){ msg.textContent='That code doesn\'t work. Check the spelling.'; msg.style.color='#e0402c'; return; }
+  if(c.once && prog.codes.includes(h)){ msg.textContent='You already used that code.'; msg.style.color='var(--muted)'; return; }
+  if(c.once){ prog.codes.push(h); saveProg(); }
+  if(h==='cda0354f') store.set('tank-super-owned',true);
+  msg.textContent=c.run(); msg.style.color='var(--accent)'; inp.value='';
+});
+showSuper();
+
+// ---------- Multiplayer: shared tanks in the artifact's database ----------
+let online={opp:null,map:0}, onlineDb=null, onlineUid=null, myOnline=null;
+const cleanRules = r => Array.isArray(r) ? r.slice(0,20).filter(x=>Array.isArray(x)&&CONDS.some(c=>c[0]===x[0])&&ACTS.some(a=>a[0]===x[1])).map(x=>[x[0],x[1],ANDS.some(a=>a[0]===x[2])?x[2]:'none']) : [];
+function oppFrom(d){
+  const name=String(d.name||'Tank').slice(0,14)||'Tank';
+  const color=/^#[0-9a-f]{6}$/i.test(d.color||'') ? d.color : '#888888';
+  const rules=cleanRules(d.rules);
+  return {name, color, type:{custom:true, name, color, rules:[], brain:(me,see,mem)=>runRules(rules,me,see,mem)}};
+}
+// ---------- Tank codes: share a tank as text, no login or server needed ----------
+// Short tank codes: one letter per block, e.g. TK-0a1b2c3-Liam
+const B36='0123456789abcdefghijklmnopqrstuvwxyz';
+// Named tank codes that are built into the game (Liam's own short code)
+const NAMED_TANKS = {};
+// Special tanks you get by typing their code on the Tank codes screen (bonus = extra health and damage while it's your tank)
+const SPECIAL_TANKS = {
+  LIAMSTRONG: {name:'Liam Strong', color:'#e0b400', bonus:1.5, rules:[['danger','flee','shoot'],['mine','avoidmine','shoot'],['low','getpow','shoot'],['hit','zigzag','shoot'],['pnear','getpow','shoot'],['close','circle','shoot'],['see','circle','shoot'],['nosee','toward','none']]},
+  SPEEDY:     {name:'Speedy', color:'#11a3b8', bonus:1.15, rules:[['danger','flee','shoot'],['mine','avoidmine','shoot'],['hit','zigzag','shoot'],['see','zigzag','shoot'],['nosee','random','none']]},
+  SNIPER:     {name:'Sniper', color:'#2b6cd9', bonus:1.15, rules:[['danger','flee','shoot'],['mine','avoidmine','shoot'],['close','away','shoot'],['see','stop','shoot'],['nosee','toward','none']]},
+  BULLDOZER:  {name:'Bulldozer', color:'#e8572a', bonus:1.2, rules:[['danger','flee','shoot'],['see','toward','shoot'],['nosee','toward','none']]},
+};
+function tankCode(){
+  const ci=Math.max(0,COLORS.indexOf(my.color));
+  const body=cleanRules(my.rules).map(r=>B36[CONDS.findIndex(c=>c[0]===r[0])]+B36[ACTS.findIndex(a=>a[0]===r[1])]+B36[ANDS.findIndex(a=>a[0]===r[2])]).join('');
+  const name=String(my.name||'My Tank').slice(0,14).replace(/[^A-Za-z0-9 ]/g,'').trim().replace(/ /g,'_');
+  return 'TK-'+B36[ci]+body+(name?'-'+name:'');
+}
+function readShortCode(txt){
+  const t=String(txt||'').trim();
+  const named=NAMED_TANKS[t.toUpperCase()]; if(named) return readShortCode(named);
+  const m=t.match(/TK-([0-9a-z])([0-9a-z]{3,60})(?:-([A-Za-z0-9_]{1,14}))?/i); if(!m) return null;
+  const body=m[2].toLowerCase(), rules=[];
+  for(let i=0;i+2<body.length+0 && i<body.length;i+=3){ const c=CONDS[B36.indexOf(body[i])], a=ACTS[B36.indexOf(body[i+1])], n=ANDS[B36.indexOf(body[i+2])]; if(c&&a) rules.push([c[0],a[0],n?n[0]:'none']); }
+  if(!rules.length) return null;
+  readShortCode.last=rules;
+  const o=oppFrom({name:(m[3]||'Tank').replace(/_/g,' '), color:COLORS[B36.indexOf(m[1].toLowerCase())]||COLORS[0], rules});
+  return o;
+}
+function readTankCode(txt){
+  const short=readShortCode(txt); if(short) return short;
+  const m=String(txt||'').trim().match(/TANK-([A-Za-z0-9_-]+)/); if(!m) return null;
+  try { const b=m[1].replace(/-/g,'+').replace(/_/g,'/'); const d=JSON.parse(decodeURIComponent(escape(atob(b+'==='.slice((b.length+3)%4)))));
+    if(!d || typeof d!=='object') return null; const o=oppFrom({name:d.n, color:d.c, rules:d.r}); return o.type && cleanRules(d.r).length ? o : null; } catch(e){ return null; }
+}
+document.getElementById('copyCode').onclick=async()=>{
+  const code=tankCode(), ta=document.getElementById('myCode'), msg=document.getElementById('copyMsg');
+  ta.value=code; ta.hidden=false; ta.select();
+  let ok=false; try { await navigator.clipboard.writeText(code); ok=true; } catch(e){ try { ok=document.execCommand('copy'); } catch(e2){} }
+  msg.textContent = ok ? 'Copied! Send it to a friend.' : 'Select the code below and copy it.';
+};
+const startFriendBattle=opp=>{ online={opp, map:Math.floor(Math.random()*MAPS.length), byCode:true}; mode='online'; startLevel(); document.querySelector('.field').scrollIntoView({behavior:'smooth',block:'start'}); };
+
+document.getElementById('playCode').onclick=()=>{
+  const raw=document.getElementById('pasteCode').value.trim(), err=document.getElementById('codeErr');
+  const opp=readTankCode(raw);
+  const sp=SPECIAL_TANKS[raw.toUpperCase().replace(/[^A-Z0-9]/g,'')];
+  let got=null;
+  if(sp) got={name:sp.name, color:sp.color, rules:sp.rules.map(r=>r.slice()), bonus:sp.bonus};
+  else if(opp){ const rules=readShortCode.last && /TK-/i.test(raw) ? readShortCode.last : null; got={name:opp.name, color:COLORS.includes(opp.color)?opp.color:COLORS[0], rules:(rules||[]).map(r=>r.slice())}; if(!got.rules.length) got=null; }
+  if(!got){ err.textContent='That tank code doesn\'t work. Check the spelling, or paste the whole code starting with TK-.'; return; }
+  my={name:got.name, color:got.color, rules:got.rules}; if(got.bonus) my.bonus=got.bonus; saveMy();
+  chosen=MY_INDEX; store.set('tank-choice',chosen); nameIn.value=my.name; renderRules(); renderColors(); buildCards();
+  err.textContent='You got '+my.name+'! It\'s your tank now'+(got.bonus?' and it\'s '+Math.round((got.bonus-1)*100)+'% stronger':'')+'. Starts next battle.'; document.getElementById('pasteCode').value='';
+};
+document.getElementById('pasteCode').addEventListener('keydown',e=>{ if(e.key==='Enter') document.getElementById('playCode').click(); });
+
+// ---------- Admins: the game's owner/editors on claude.ai, or anyone given the admin code ----------
+let isAdmin=false, adminByCode=store.get('tank-admin',false), adminByAccount=false;
+const admSel=document.getElementById('admSel'), admAb=document.getElementById('admAb');
+function applyAdmin(){
+  isAdmin = adminByCode || adminByAccount;
+  document.getElementById('adminPanel').hidden=!isAdmin;
+  document.getElementById('resetWallsBtn').hidden=!isAdmin;
+  document.getElementById('admLogout').hidden=!adminByCode || adminByAccount;
+  if(!isAdmin){ drag=null; cv.style.cursor = autoMove ? 'default' : 'crosshair'; }
+  renderAdmin();
+}
+function renderAdmin(){
+  if(!isAdmin) return;
+  const keep=admSel.value;
+  admSel.innerHTML='';
+  tanks.forEach((t,i)=>{ const o=document.createElement('option'); o.value=i; o.textContent=(t.team==='you'?'Your tank':t.label)+(t.alive?'':' (destroyed)'); admSel.appendChild(o); });
+  admSel.value = keep!=='' && tanks[+keep] ? keep : '0';
+  const t=tanks[+admSel.value]; admAb.innerHTML='';
+  for(const a of ABILITIES){ if(a.id==='repair') continue;
+    const b=document.createElement('button'); b.type='button';
+    const on=!!t && hasP(t,a.id);
+    b.setAttribute('aria-pressed',on); b.innerHTML=`<span class="chip" style="background:${a.color}">${a.label}</span>${a.name}`;
+    b.onclick=()=>{ const tk=tanks[+admSel.value]; if(!tk||!tk.alive) return;
+      if(!tk.perks) tk.perks=new Set();
+      if(hasP(tk,a.id)){ tk.perks.delete(a.id); if(tk.power&&tk.power.id===a.id){ tk.power=null; tk.powerT=0; } }
+      else { tk.perks.add(a.id); float(tk.x,tk.y-40,a.name+'!',a.color); }
+      renderAdmin(); };
+    admAb.appendChild(b);
+  }
+}
+admSel.onchange=renderAdmin;
+document.getElementById('admHeal').onclick=()=>{ const t=tanks[+admSel.value]; if(t&&t.alive){ t.hp=t.hpMax; t.frozen=0; float(t.x,t.y-40,'Full health!','#3fbf4f'); } };
+document.getElementById('admClear').onclick=()=>{ const t=tanks[+admSel.value]; if(t){ t.power=null; t.powerT=0; if(t.perks) t.perks.clear(); t.frozen=0; renderAdmin(); } };
+document.getElementById('admLogout').onclick=()=>{ adminByCode=false; store.set('tank-admin',false); applyAdmin(); };
+CODES['efba3108']={ once:false, run(){ adminByCode=true; store.set('tank-admin',true); applyAdmin(); return 'You are an admin now! Admin tools are under the controls.'; } };
+applyAdmin();
+(async()=>{ try { const u = window.claude && window.claude.use ? await window.claude.use('user') : null; if(u && await u.canEdit()){ adminByAccount=true; applyAdmin(); showLock(); } } catch(e){} })();
+
+// ---------- Lockdown: the owner can kick everybody else out ----------
+// Only the game's owner (and Editors) can switch it; everyone else gets a "closed" screen and the game stops.
+let lockOn=false, lockedOut=false, lockDb=null, lockInfo={};
+function lockEstText(){
+  const u=Number(lockInfo.until)||0;
+  if(!u) return 'Estimated time: not sure yet';
+  const left=Math.round((u-Date.now())/1000);
+  if(left<=0) return 'Estimated time: any minute now…';
+  const h=Math.floor(left/3600), m=Math.floor(left%3600/60), sec=left%60, pad=n=>String(n).padStart(2,'0');
+  return 'Estimated time: '+(h?h+':'+pad(m):m)+':'+pad(sec);
+}
+setInterval(()=>{ if(lockOn){ document.getElementById('lockEst').textContent=lockEstText(); if(adminByAccount) document.getElementById('lockStatus').textContent='Lockdown is ON. Nobody else can play. '+lockEstText()+'.'; } },1000);
+function showLock(){
+  lockedOut = lockOn && !adminByAccount;
+  const ls=document.getElementById('lockScreen');
+  ls.hidden=!lockedOut; ls.classList.toggle('white', lockInfo.color==='white');
+  document.getElementById('lockEst').textContent=lockEstText();
+  const wrap=document.querySelector('.wrap'); if(wrap) wrap.inert=lockedOut;
+  document.getElementById('lockBox').hidden=!(adminByAccount && lockDb);
+  const b=document.getElementById('lockBtn');
+  b.textContent = lockOn ? 'Turn off lockdown' : 'Turn on lockdown';
+  b.className = lockOn ? 'primary' : 'danger';
+  document.getElementById('lockStatus').textContent = lockOn ? 'Lockdown is ON. Nobody else can play.' : 'Lockdown is off. Everyone can play.';
+}
+(async()=>{
+  try {
+    const db = window.claude && window.claude.use ? await window.claude.use('db') : null;
+    if(!db) return;
+    lockDb=db; showLock();
+    db.doc('settings/lockdown').onSnapshot(d=>{ lockInfo = d.exists ? (d.data()||{}) : {}; lockOn = lockInfo.on===true; showLock(); }, ()=>{});
+  } catch(e){}
+})();
+document.getElementById('lockBtn').onclick=async e=>{
+  if(!lockDb || !adminByAccount) return;
+  const b=e.currentTarget; b.disabled=true;
+  const mins=+document.getElementById('lockTime').value||0;
+  try { await lockDb.doc('settings/lockdown').set(lockOn ? {on:false, at:Date.now()} : {on:true, at:Date.now(), color:document.getElementById('lockColor').value==='white'?'white':'black', until: mins ? Date.now()+mins*60000 : 0}); }
+  catch(err){ document.getElementById('lockStatus').textContent='That didn\'t work. Only the game\'s owner can use lockdown.'; }
+  b.disabled=false;
+};
+
+// ---------- Controls and loop ----------
+document.getElementById('restartBtn').onclick=()=>{ mode='campaign'; level=1; startLevel(); };
+document.getElementById('nextBtn').onclick=e=>{
+  const nx=e.currentTarget.dataset.next;
+  if(nx==='up') level=Math.min(MAX_LEVEL,level+1);
+  else if(nx==='tround') tour.round++;
+  else if(nx==='trestart') tour.round=1;
+  else if(nx==='campaign') mode='campaign';
+  else if(nx==='coopup') duo.lvl++;
+  else if(nx==='netagain'){ netSend({t:'again'}); document.getElementById('banner').hidden=true; return; }
+  if(net.role==='guest') return;
+  if(net.role==='host' && mode==='duo') net.round++;
+  startLevel();
+};
+const pauseBtn=document.getElementById('pauseBtn');
+pauseBtn.onclick=()=>{ paused=!paused; pauseBtn.setAttribute('aria-pressed',paused); pauseBtn.textContent=paused?'Resume':'Pause'; };
+document.querySelectorAll('[data-speed]').forEach(b=>b.onclick=()=>{
+  speed=+b.dataset.speed;
+  document.querySelectorAll('[data-speed]').forEach(x=>x.setAttribute('aria-pressed', x===b));
+});
+
+function frame(){
+  const guest = net.role==='guest' && mode==='duo';
+  if(!guest && !paused && !lockedOut && !tutOn && ((!menuOn && screen==='battle') || (net.role==='host' && net.ch))){ for(let i=0;i<(net.role==='host'&&mode==='duo'?1:speed);i++) tick(); }
+  if(net.role==='host' && mode==='duo' && (net.f=(net.f||0)+1)%2===0) netSend(snapshot());
+  for(const s of sparks){ s.x+=s.vx; s.y+=s.vy; s.vx*=.92; s.vy*=.92; s.life--; }
+  sparks=sparks.filter(s=>s.life>0);
+  for(const f of floaters){ f.y-= f.max>80 ? 0 : .4; f.life--; }
+  floaters=floaters.filter(f=>f.life>0);
+  draw(); updatePanels();
+  requestAnimationFrame(frame);
+}
+// ---------- Internet battle: two browsers connect directly (WebRTC), no login or game server ----------
+const net={role:null, pc:null, ch:null, round:0, seen:-1, f:0};
+const NET_ICE=[{urls:'stun:stun.l.google.com:19302'},{urls:'stun:stun1.l.google.com:19302'}];
+const netStatus=t=>{ document.getElementById('netStatus').textContent=t; };
+// Short codes: keep only the few parts of the connection info that matter, and rebuild the rest on the other side.
+const b64u=bytes=>{ let bin=''; for(const b of bytes) bin+=String.fromCharCode(b); return btoa(bin).replace(/\+/g,'-').replace(/\//g,'_').replace(/=+$/,''); };
+const unb64u=str=>{ const b=str.replace(/-/g,'+').replace(/_/g,'/'); return Uint8Array.from(atob(b+'==='.slice((b.length+3)%4)),c=>c.charCodeAt(0)); };
+async function packCode(prefix,obj,extra){
+  const L=obj.sdp.split(/\r?\n/), get=k=>{ const l=L.find(x=>x.startsWith('a='+k+':')); return l ? l.slice(k.length+3).trim() : ''; };
+  const ufrag=get('ice-ufrag'), pwd=get('ice-pwd'), fp=(get('fingerprint').split(' ')[1]||'');
+  const fpb=Uint8Array.from(fp.split(':').filter(Boolean).map(h=>parseInt(h,16)));
+  let cands=[];
+  for(const l of L){ if(!l.startsWith('a=candidate:')) continue; const q=l.slice(12).split(' ');
+    if(q[1]!=='1' || q[2].toLowerCase()!=='udp') continue; const type=q[7]; if(type!=='host'&&type!=='srflx') continue;
+    if(!cands.some(c=>c.ip===q[4]&&c.port===q[5])) cands.push({type, ip:q[4], port:q[5]}); }
+  cands.sort((a,b)=>(a.type==='srflx'?0:1)-(b.type==='srflx'?0:1)); cands=cands.slice(0,3);
+  const parts=[ufrag,pwd,b64u(fpb),cands.map(c=>(c.type==='srflx'?'s':'h')+c.ip+'_'+c.port).join(',')];
+  if(extra) parts.push(extra.mode==='vs'?'v':'c', b64u(new TextEncoder().encode(String(extra.name||'').slice(0,14))));
+  return prefix+'-'+parts.join('~');
+}
+async function unpackCode(prefix,txt){
+  const m=String(txt||'').trim().match(new RegExp(prefix+'-([A-Za-z0-9+/]{4,64})~([A-Za-z0-9+/]{16,256})~([A-Za-z0-9_-]{40,46})~([^\\s~]*)(?:~([cv])~([A-Za-z0-9_-]{0,40}))?')); if(!m) return null;
+  try {
+    const fpb=unb64u(m[3]); if(fpb.length!==32) return null;
+    const hex=[...fpb].map(b=>b.toString(16).padStart(2,'0').toUpperCase()).join(':');
+    const cands=m[4].split(',').filter(Boolean).slice(0,3).map((c,i)=>{ const t=c[0], k=c.lastIndexOf('_'), ip=c.slice(1,k), port=+c.slice(k+1);
+      if(!(t==='s'||t==='h') || !/^[0-9A-Za-z.:-]{3,64}$/.test(ip) || !(port>0&&port<65536)) return null;
+      return 'a=candidate:'+(i+1)+' 1 udp '+(t==='s'?1686052607:2122260223)+' '+ip+' '+port+' typ '+(t==='s'?'srflx raddr 0.0.0.0 rport 0':'host')+' generation 0'; }).filter(Boolean);
+    if(!cands.length) return null;
+    const type = prefix==='TBH' ? 'offer' : 'answer';
+    const sdp=['v=0','o=- 1 2 IN IP4 127.0.0.1','s=-','t=0 0','a=group:BUNDLE 0','a=msid-semantic: WMS','m=application 9 UDP/DTLS/SCTP webrtc-datachannel','c=IN IP4 0.0.0.0',...cands,
+      'a=ice-ufrag:'+m[1],'a=ice-pwd:'+m[2],'a=ice-options:trickle','a=fingerprint:sha-256 '+hex,'a=setup:'+(type==='offer'?'actpass':'active'),'a=mid:0','a=sctp-port:5000','a=max-message-size:262144',''].join('\r\n');
+    let name=''; try { name=m[6] ? new TextDecoder().decode(unb64u(m[6])).slice(0,14) : ''; } catch(e){}
+    return {type, sdp, mode: m[5]==='v'?'vs':'coop', name};
+  } catch(e){ return null; }
+}
+function waitIce(pc){ return new Promise(res=>{ if(pc.iceGatheringState==='complete') return res(); const t=setTimeout(res,4000); pc.addEventListener('icegatheringstatechange',()=>{ if(pc.iceGatheringState==='complete'){ clearTimeout(t); res(); } }); }); }
+function netReset(){
+  try { net.ch && net.ch.close(); } catch(e){} try { net.pc && net.pc.close(); } catch(e){}
+  const wasDuo = mode==='duo' && net.role;
+  try { net.peer && net.peer.destroy(); } catch(e){}
+  net.role=null; net.pc=null; net.ch=null; net.peer=null; net.pending=null; keys.p1={}; keys.p2={};
+  ['netHostSteps','netJoinSteps','netAnswerWrap','netLeave','qHostView','qJoinView'].forEach(id=>document.getElementById(id).hidden=true);
+  ['netHost','netJoin','qHost','qJoin'].forEach(id=>document.getElementById(id).hidden=false);
+  if(wasDuo){ mode='campaign'; startLevel(); }
+}
+function netSend(o){ try { if(net.ch && net.ch.readyState==='open') net.ch.send(JSON.stringify(o)); } catch(e){} }
+function netSetup(ch){
+  net.ch=ch;
+  ch.onopen=()=>{
+    netStatus('Connected! Battle on!'); document.getElementById('netLeave').hidden=false; inv.hidden=true;
+    ['netHostSteps','netJoinSteps'].forEach(id=>document.getElementById(id).hidden=true);
+    if(net.role==='host'){ duo.p1=0; duo.p2=0; duo.lvl=1; duo.coop=document.getElementById('netMode').value!=='vs'; duo.map=Math.floor(Math.random()*MAPS.length); duo.p2type = chosen===0?1:0; mode='duo'; net.round++; startLevel(); }
+    else { mode='duo'; stopCountdown(); }
+    menuClose(); showScreen('battle'); document.activeElement && document.activeElement.blur && document.activeElement.blur();
+  };
+  ch.onclose=()=>{ if(net.role){ netStatus('Your friend left the game.'); netReset(); } };
+  ch.onmessage=e=>{
+    let m; try { m=JSON.parse(e.data); } catch(err){ return; }
+    if(!m || typeof m!=='object') return;
+    if(net.role==='host'){
+      if(m.t==='k' && m.k && typeof m.k==='object'){ keys.p2={up:m.k.up===true, down:m.k.down===true, left:m.k.left===true, right:m.k.right===true, fire:m.k.fire===true}; }
+      else if(m.t==='again' && over && mode==='duo'){ document.getElementById('nextBtn').click(); }
+    } else if(net.role==='guest' && m.t==='s') applySnapshot(m);
+  };
+}
+const num=(v,d=0)=>{ v=+v; return Number.isFinite(v)?v:d; };
+function snapshot(){
+  const bn=document.getElementById('banner');
+  return {t:'s', r:net.round, map:MAPS.indexOf(curMap), over, coop:!!duo.coop, lvl:duo.lvl,
+    tk:tanks.map(t=>[Math.round(t.x),Math.round(t.y),+t.a.toFixed(2),+t.turret.toFixed(2),Math.round(t.hp),t.hpMax,t.alive?1:0,TYPES.indexOf(t.type),t.label,t.power?t.power.id:'',t.powerT,t.frozen,t.baseR,radiusOf(t)]),
+    b:bullets.map(b=>[Math.round(b.x),Math.round(b.y),b.r,tanks.indexOf(b.owner),b.freeze?1:0,b.homing?1:0]),
+    p:pickups.filter(p=>!p.taken).map(p=>[Math.round(p.x),Math.round(p.y),p.ab.id,p.age|0]),
+    st:strikes.map(q=>[Math.round(q.x),Math.round(q.y),q.t,q.max,q.supply?1:0]),
+    w:WALLS.map(w=>[w.x,w.y,w.w,w.h,weak.has(w)?1:0]),
+    f:floaters.map(f=>[String(f.text).slice(0,40),Math.round(f.x),Math.round(f.y),f.col,f.life,f.max]),
+    bt: over && !bn.hidden ? [document.getElementById('bannerText').textContent, document.getElementById('bannerSub').textContent] : null };
+}
+function applySnapshot(m){
+  const mi=num(m.map); if(MAPS[mi]) curMap=MAPS[mi];
+  const abil=id=>ABILITIES.find(a=>a.id===id)||null;
+  tanks=(Array.isArray(m.tk)?m.tk:[]).slice(0,6).map((a,i)=>{ const ty=TYPES[num(a[7])]||TYPES[0], pw=abil(a[9]);
+    return {type:ty, team:i===1?'you':(i===0&&m.coop)?'mate':'bot', x:num(a[0]), y:num(a[1]), a:num(a[2]), turret:num(a[3]), hp:num(a[4]), hpMax:Math.max(1,num(a[5],1)), alive:!!a[6],
+      label: i===1?'YOU':i===0?'FRIEND':String(a[8]||'').slice(0,14), power:pw, powerT:num(a[10]), frozen:num(a[11]), baseR:num(a[12],18), netR:num(a[13],18), perks:new Set(), boss:false}; });
+  bullets=(Array.isArray(m.b)?m.b:[]).slice(0,300).map(a=>({x:num(a[0]),y:num(a[1]),r:Math.min(12,num(a[2],4)),owner:tanks[num(a[3])]||tanks[0]||{type:TYPES[0]},freeze:!!a[4],homing:!!a[5]}));
+  pickups=(Array.isArray(m.p)?m.p:[]).slice(0,30).map(a=>({x:num(a[0]),y:num(a[1]),ab:abil(a[2])||ABILITIES[0],age:num(a[3])}));
+  strikes=(Array.isArray(m.st)?m.st:[]).slice(0,10).map(a=>({x:num(a[0]),y:num(a[1]),t:num(a[2]),max:Math.max(1,num(a[3],1)),supply:!!a[4]}));
+  WALLS=(Array.isArray(m.w)?m.w:[]).slice(0,60).map(a=>({x:num(a[0]),y:num(a[1]),w:num(a[2]),h:num(a[3]),weakFlag:!!a[4]}));
+  weak=new Set(WALLS.filter(w=>w.weakFlag)); mines=[];
+  floaters=(Array.isArray(m.f)?m.f:[]).slice(0,20).map(a=>({text:String(a[0]||'').slice(0,40),x:num(a[1]),y:num(a[2]),col:/^#[0-9a-f]{3,8}$/i.test(a[3]||'')?a[3]:'#fff',life:num(a[4]),max:num(a[5])}));
+  over=!!m.over;
+  if(m.r!==net.seen){ net.seen=m.r; buildEnemies(); document.getElementById('lvlNum').textContent=m.coop?'Internet · Team level '+num(m.lvl,1):'Internet'; document.getElementById('mapName').textContent='Internet battle · '+curMap.name; }
+  const bn=document.getElementById('banner');
+  if(Array.isArray(m.bt)){ bn.hidden=false;
+    const host=String(m.bt[0]).slice(0,60); document.getElementById('bannerText').textContent = host==='YOU WIN!' ? 'YOUR FRIEND WINS!' : host==='YOUR FRIEND WINS!' ? 'YOU WIN!' : host;
+    document.getElementById('bannerSub').textContent=String(m.bt[1]).replace('Player 1','Host').replace('Player 2','You').slice(0,80);
+    const nb=document.getElementById('nextBtn'); nb.textContent=m.coop?'Next (ask host)':'Rematch'; nb.dataset.next='netagain'; stopCountdown(); }
+  else if(!bn.hidden) bn.hidden=true;
+}
+document.getElementById('netHost').onclick=async()=>{
+  netReset(); net.role='host'; netStatus('Making your code…');
+  try {
+    const pc=new RTCPeerConnection({iceServers:NET_ICE}); net.pc=pc;
+    netSetup(pc.createDataChannel('tank',{ordered:false, maxRetransmits:0}));
+    pc.onconnectionstatechange=()=>{ if(pc.connectionState==='failed'){ netStatus('Could not connect. Some networks block this. Try again, or use tank codes instead.'); netReset(); } };
+    await pc.setLocalDescription(await pc.createOffer()); await waitIce(pc);
+    document.getElementById('netOffer').value=await packCode('TBH',{type:'offer',sdp:pc.localDescription.sdp},{mode:document.getElementById('netMode').value, name:my.name||'A friend'});
+    document.getElementById('netHostSteps').hidden=false; document.getElementById('netJoin').hidden=true; document.getElementById('netLeave').hidden=false;
+    netStatus('Send the code to your friend, then paste their reply code.');
+  } catch(e){ netStatus('claude.ai blocks online battles. Open the game from its website or the downloaded file in Chrome, and have your friend do the same.'); netReset(); }
+};
+document.getElementById('netConnect').onclick=async()=>{
+  const ans=await unpackCode('TBJ',document.getElementById('netAnswerIn').value);
+  if(!ans || ans.type!=='answer' || !net.pc){ netStatus('That reply code doesn\'t work. It should start with TBJ.'); return; }
+  try { await net.pc.setRemoteDescription(ans); netStatus('Connecting…'); } catch(e){ netStatus('That reply code doesn\'t match this game. Press Host a game and try again.'); }
+};
+document.getElementById('netJoin').onclick=()=>{ netReset(); document.getElementById('netJoinSteps').hidden=false; document.getElementById('netHost').hidden=true; document.getElementById('netLeave').hidden=false; netStatus(''); };
+document.getElementById('netMakeAnswer').onclick=async()=>{
+  const off=await unpackCode('TBH',document.getElementById('netOfferIn').value);
+  if(!off || off.type!=='offer'){ netStatus('That code doesn\'t work. It should start with TBH.'); return; }
+  const code=await joinWith(off);
+  if(code){ document.getElementById('netAnswer').value=code; document.getElementById('netAnswerWrap').hidden=false; netStatus('Send the reply code to the host. The battle starts when they paste it.'); }
+};
+async function joinWith(off){
+  try {
+    try { net.pc && net.pc.close(); } catch(e){}
+    net.role='guest'; const pc=new RTCPeerConnection({iceServers:NET_ICE}); net.pc=pc;
+    pc.ondatachannel=e=>netSetup(e.channel);
+    pc.onconnectionstatechange=()=>{ if(pc.connectionState==='failed'){ netStatus('Could not connect. Some networks block this. Try again, or use tank codes instead.'); netReset(); } };
+    await pc.setRemoteDescription({type:'offer', sdp:off.sdp}); await pc.setLocalDescription(await pc.createAnswer()); await waitIce(pc);
+    document.getElementById('netLeave').hidden=false;
+    return await packCode('TBJ',{type:'answer',sdp:pc.localDescription.sdp});
+  } catch(e){ netStatus('claude.ai blocks online battles. Open the game from its website or the downloaded file in Chrome, and have your friend do the same.'); netReset(); return null; }
+}
+// ----- The invitation sign: paste a friend's code anywhere on the page and it pops up -----
+const inv=document.getElementById('invite');
+function showInvite(off){
+  document.getElementById('invNo').onclick=()=>{ inv.hidden=true; };
+  inv.hidden=false; document.getElementById('invStep1').hidden=false; document.getElementById('invStep2').hidden=true;
+  document.getElementById('invWho').textContent=(off.name||'A friend')+' invited you to play Tank Battles 1!';
+  document.getElementById('invWhat').textContent= off.mode==='vs' ? 'Mode: battle each other' : 'Mode: team up against the bots';
+  document.getElementById('invMsg').textContent='';
+  document.getElementById('invAccept').onclick=async()=>{
+    document.getElementById('invMsg').textContent='Getting ready…';
+    const code=await joinWith(off); if(!code){ document.getElementById('invMsg').textContent='This didn\'t work here. Try the game file in Chrome.'; return; }
+    document.getElementById('invCode').value=code; document.getElementById('invStep1').hidden=true; document.getElementById('invStep2').hidden=false;
+    document.getElementById('invBack').textContent='Send this reply code back to '+(off.name||'your friend')+'. The battle starts as soon as they paste it.';
+    document.getElementById('invMsg').textContent='';
+  };
+}
+document.getElementById('invNo').onclick=()=>{ inv.hidden=true; };
+// ----- Short game codes (5 numbers). A free public helper server (PeerJS) introduces the two computers; then they talk directly. -----
+const PEER_SRC='https://cdn.jsdelivr.net/npm/peerjs@1.5.4/dist/peerjs.min.js';
+let peerLoading=null;
+function loadPeer(){
+  if(window.Peer) return Promise.resolve();
+  if(!peerLoading) peerLoading=new Promise((res,rej)=>{ const sc=document.createElement('script'); sc.src=PEER_SRC; sc.onload=()=>window.Peer?res():rej(); sc.onerror=()=>{ peerLoading=null; rej(); }; document.head.appendChild(sc); setTimeout(()=>{ if(!window.Peer){ peerLoading=null; rej(); } },12000); });
+  return peerLoading;
+}
+const peerOpts=()=>window.__peerOpts||{};
+const PEER_PREFIX='tankbattles1-';
+function wrapConn(conn){
+  const a={ send:x=>conn.send(x), close:()=>conn.close(), get readyState(){ return conn.open?'open':'closed'; } };
+  conn.on('open',()=>a.onopen&&a.onopen()); conn.on('data',d=>a.onmessage&&a.onmessage({data:String(d)}));
+  conn.on('close',()=>a.onclose&&a.onclose()); conn.on('error',()=>a.onclose&&a.onclose());
+  return a;
+}
+const quickFail=msg=>{ netStatus(msg+' You can use a long code instead (below).'); document.getElementById('longBox').open=true; };
+function showHostInvite(name, yes, no){
+  inv.hidden=false; document.getElementById('invStep1').hidden=false; document.getElementById('invStep2').hidden=true;
+  document.getElementById('invWho').textContent=name+' wants to play with you!';
+  document.getElementById('invWhat').textContent=document.getElementById('netMode').value==='vs' ? 'Mode: battle each other' : 'Mode: team up against the bots';
+  document.getElementById('invMsg').textContent='';
+  document.getElementById('invAccept').onclick=()=>{ inv.hidden=true; yes(); };
+  document.getElementById('invNo').onclick=()=>{ inv.hidden=true; no(); };
+}
+document.getElementById('qHost').onclick=async()=>{
+  netReset(); net.role='host'; netStatus('Making your game code…'); document.getElementById('qShow').textContent='-----';
+  try { await loadPeer(); } catch(e){ net.role=null; quickFail('Short codes can\'t connect here.'); return; }
+  if(net.role!=='host') return;
+  const tryId=(tries)=>{
+    const code=String(10000+Math.floor(Math.random()*90000));
+    const peer=new Peer(PEER_PREFIX+code, peerOpts()); net.peer=peer;
+    peer.on('open',()=>{ if(net.peer!==peer) return; document.getElementById('qShow').textContent=code; document.getElementById('qHostView').hidden=false;
+      document.getElementById('qHost').hidden=true; document.getElementById('qJoin').hidden=true; document.getElementById('netLeave').hidden=false; netStatus('Waiting for your friend to type the code…'); });
+    peer.on('error',err=>{ if(net.peer!==peer) return; if(err && err.type==='unavailable-id' && tries<5){ try { peer.destroy(); } catch(e){} tryId(tries+1); }
+      else if(!net.ch){ netReset(); quickFail('Short codes can\'t connect right now.'); } });
+    peer.on('connection',conn=>{
+      if(net.peer!==peer){ conn.on('open',()=>conn.close()); return; }
+      if(net.ch || net.pending){ conn.on('open',()=>{ try { conn.send(JSON.stringify({t:'busy'})); } catch(e){} setTimeout(()=>conn.close(),300); }); return; }
+      net.pending=conn; const a=wrapConn(conn);
+      a.onmessage=e=>{ let m; try { m=JSON.parse(e.data); } catch(err){ return; }
+        if(m && m.t==='hi' && net.pending===conn){
+          showHostInvite(String(m.name||'A friend').slice(0,14)||'A friend',
+            ()=>{ net.pending=null; netSetup(a); a.send(JSON.stringify({t:'ok', name:my.name||'Your friend'})); a.onopen(); },
+            ()=>{ try { a.send(JSON.stringify({t:'no'})); } catch(e){} net.pending=null; setTimeout(()=>conn.close(),300); }); } };
+      a.onclose=()=>{ if(net.pending===conn){ net.pending=null; inv.hidden=true; } };
+    });
+  };
+  tryId(0);
+};
+function backToJoin(msg){ netReset(); document.getElementById('qJoinView').hidden=false; document.getElementById('qHost').hidden=true; netStatus(msg); }
+document.getElementById('qJoin').onclick=()=>{ netReset(); document.getElementById('qJoinView').hidden=false; document.getElementById('qHost').hidden=true; document.getElementById('netLeave').hidden=false; netStatus(''); document.getElementById('qCode').focus(); };
+document.getElementById('qCode').addEventListener('keydown',e=>{ if(e.key==='Enter') document.getElementById('qGo').click(); });
+document.getElementById('qGo').onclick=async()=>{
+  const code=(document.getElementById('qCode').value.match(/\d/g)||[]).join('');
+  if(code.length!==5){ netStatus('Game codes have 5 numbers.'); return; }
+  try { net.peer && net.peer.destroy(); } catch(e){}
+  net.role='guest'; netStatus('Looking for that game…');
+  try { await loadPeer(); } catch(e){ net.role=null; quickFail('Short codes can\'t connect here.'); return; }
+  const peer=new Peer(peerOpts()); net.peer=peer;
+  peer.on('error',err=>{ if(net.ch || net.peer!==peer) return; if(err && err.type==='peer-unavailable') backToJoin('No game with that code. Check the numbers and try again.'); else { backToJoin(''); quickFail('Short codes can\'t connect right now.'); } });
+  peer.on('open',()=>{
+    if(net.peer!==peer) return;
+    const conn=peer.connect(PEER_PREFIX+code,{serialization:'raw', reliable:true}), a=wrapConn(conn);
+    a.onopen=()=>{ a.send(JSON.stringify({t:'hi', name:my.name||'A friend'})); netStatus('Found it! Waiting for your friend to say yes…'); };
+    a.onmessage=e=>{ let m; try { m=JSON.parse(e.data); } catch(err){ return; }
+      if(m.t==='ok'){ netSetup(a); a.onopen(); netStatus('You joined '+String(m.name||'your friend').slice(0,14)+'\'s game!'); }
+      else if(m.t==='no'){ backToJoin('Your friend said no thanks this time.'); }
+      else if(m.t==='busy'){ backToJoin('That game is already full.'); } };
+    a.onclose=()=>{ if(!net.ch && net.peer===peer) backToJoin('Could not join that game.'); };
+    setTimeout(()=>{ if(net.peer===peer && !conn.open && !net.ch) backToJoin('No game with that code. Check the numbers and try again.'); },9000);
+  });
+};
+document.getElementById('invClose').onclick=()=>{ inv.hidden=true; };
+document.getElementById('invCopy').onclick=async()=>{ const ta=document.getElementById('invCode'); ta.select(); let ok=false; try { await navigator.clipboard.writeText(ta.value); ok=true; } catch(e){ try { ok=document.execCommand('copy'); } catch(e2){} } document.getElementById('invMsg').textContent= ok?'Copied! Now send it.':'Select the code and copy it.'; };
+document.addEventListener('paste', async e=>{
+  const txt=(e.clipboardData && e.clipboardData.getData('text'))||'';
+  if(/TBH-/.test(txt) && net.role!=='host'){ const off=await unpackCode('TBH',txt); if(off){ showInvite(off); } }
+  else if(/TBJ-/.test(txt) && net.role==='host' && net.pc){ document.getElementById('netAnswerIn').value=txt.trim(); setTimeout(()=>document.getElementById('netConnect').click(),0); }
+});
+const copyFrom=async id=>{ const ta=document.getElementById(id); ta.select(); try { await navigator.clipboard.writeText(ta.value); netStatus('Copied! Now send it.'); } catch(e){ try { document.execCommand('copy'); netStatus('Copied! Now send it.'); } catch(e2){ netStatus('Select the code and copy it.'); } } };
+document.getElementById('netCopyOffer').onclick=()=>copyFrom('netOffer');
+document.getElementById('netCopyAnswer').onclick=()=>copyFrom('netAnswer');
+document.getElementById('netLeave').onclick=()=>{ netStatus(''); netReset(); };
+
+(()=>{ if(window.claude && window.claude.use) document.getElementById('netWhere').hidden=false; })();
+
+// ---------- Account: username + password, and save codes that bring your stuff back anywhere ----------
+const SAVE_KEYS=['tank-prog','tank-best','tank-level','tank-choice','tank-custom','tank-cust','tank-auto','tank-automove','tank-tutorial','tank-super','tank-super-owned','tank-beat301','tank-genmaps','tank-user'];
+const acMsg=t=>{ document.getElementById('acMsg').textContent=t; };
+const acB64={ enc:u8=>{ let s=''; for(let i=0;i<u8.length;i+=8192) s+=String.fromCharCode.apply(null,u8.subarray(i,i+8192)); return btoa(s).replace(/\+/g,'-').replace(/\//g,'_').replace(/=+$/,''); },
+  dec:t=>{ const s=atob(t.replace(/-/g,'+').replace(/_/g,'/')); const u=new Uint8Array(s.length); for(let i=0;i<s.length;i++) u[i]=s.charCodeAt(i); return u; } };
+async function squeeze(u8,dir){ if(typeof CompressionStream==='undefined') return null; const st=new Blob([u8]).stream().pipeThrough(dir? new CompressionStream('deflate-raw') : new DecompressionStream('deflate-raw')); return new Uint8Array(await new Response(st).arrayBuffer()); }
+async function acKey(user,pw,salt){ const base=await crypto.subtle.importKey('raw',new TextEncoder().encode(user.toLowerCase()+'\n'+pw),'PBKDF2',false,['deriveKey']);
+  return crypto.subtle.deriveKey({name:'PBKDF2',salt,iterations:150000,hash:'SHA-256'},base,{name:'AES-GCM',length:256},false,['encrypt','decrypt']); }
+const acUser=()=>store.get('tank-user',null);
+function acShow(){ const u=acUser(); document.getElementById('acctNew').hidden=!!u; document.getElementById('acctMe').hidden=!u; if(u) document.getElementById('acName').textContent=u.name;
+  const m=document.getElementById('mAcct'); if(m) m.textContent = u ? u.name : 'Log in or save'; }
+async function pwCheck(name,pw,salt){ const h=await crypto.subtle.digest('SHA-256',new TextEncoder().encode(salt+'|'+name.toLowerCase()+'|'+pw)); return acB64.enc(new Uint8Array(h)).slice(0,22); }
+document.getElementById('acCreate').onclick=async()=>{
+  const name=document.getElementById('acUser').value.trim(), pw=document.getElementById('acPass').value;
+  if(!/^[A-Za-z0-9_]{3,14}$/.test(name)) return acMsg('Username: 3 to 14 letters or numbers, no spaces.');
+  if(pw.length<4) return acMsg('Password: at least 4 characters.');
+  if(!crypto.subtle) return acMsg('This browser can\'t make accounts. Try Chrome.');
+  const salt=acB64.enc(crypto.getRandomValues(new Uint8Array(9)));
+  store.set('tank-user',{name, salt, check:await pwCheck(name,pw,salt)}); document.getElementById('acPass').value='';
+  acShow(); acMsg('Account made! Hi '+name+'. Now make a save code so you never lose your stuff.');
+};
+document.getElementById('acOut').onclick=()=>{ localStorage.removeItem('tank-user'); document.getElementById('acCode').hidden=true; document.getElementById('acCopy').hidden=true; acShow(); acMsg('Logged out. Your stuff is still in this browser. Use your save code to get it back somewhere else.'); };
+document.getElementById('acSave').onclick=async()=>{
+  const u=acUser(); if(!u) return; const pw=document.getElementById('acPass2').value;
+  if(await pwCheck(u.name,pw,u.salt)!==u.check) return acMsg('That password is wrong.');
+  try {
+    saveProg();
+    const data={v:1,k:{}}; for(const k of SAVE_KEYS){ const v=localStorage.getItem(k); if(v!==null) data.k[k]=v; }
+    let raw=new TextEncoder().encode(JSON.stringify(data)), z=await squeeze(raw,true), flag=z?1:0; if(z) raw=z;
+    const salt=crypto.getRandomValues(new Uint8Array(16)), iv=crypto.getRandomValues(new Uint8Array(12));
+    const ct=new Uint8Array(await crypto.subtle.encrypt({name:'AES-GCM',iv},await acKey(u.name,pw,salt),raw));
+    const all=new Uint8Array(1+16+12+ct.length); all[0]=flag; all.set(salt,1); all.set(iv,17); all.set(ct,29);
+    const ta=document.getElementById('acCode'); ta.value='TB1-'+u.name+'-'+acB64.enc(all); ta.hidden=false; document.getElementById('acCopy').hidden=false; ta.select();
+    document.getElementById('acPass2').value=''; acMsg('Here is your save code! Copy it and keep it safe.');
+  } catch(e){ acMsg('Couldn\'t make a save code. Try again.'); }
+};
+document.getElementById('acCopy').onclick=async()=>{ const ta=document.getElementById('acCode'); ta.select(); try { await navigator.clipboard.writeText(ta.value); acMsg('Copied! Paste it somewhere safe.'); } catch(e){ try { document.execCommand('copy'); acMsg('Copied! Paste it somewhere safe.'); } catch(e2){ acMsg('Select the code and copy it.'); } } };
+document.getElementById('acLoad').onclick=async()=>{
+  const m=/^TB1-([A-Za-z0-9_]{3,14})-([A-Za-z0-9_-]+)$/.exec(document.getElementById('acLoadCode').value.replace(/\s+/g,''));
+  if(!m) return acMsg('That save code doesn\'t look right. It starts with TB1-.');
+  const pw=document.getElementById('acPass3').value;
+  try {
+    const all=acB64.dec(m[2]); const flag=all[0], salt=all.slice(1,17), iv=all.slice(17,29), ct=all.slice(29);
+    let raw; try { raw=new Uint8Array(await crypto.subtle.decrypt({name:'AES-GCM',iv},await acKey(m[1],pw,salt),ct)); } catch(e){ return acMsg('Wrong password for '+m[1]+'.'); }
+    if(flag===1){ raw=await squeeze(raw,false); if(!raw) return acMsg('This browser can\'t open that save code. Try Chrome.'); }
+    const data=JSON.parse(new TextDecoder().decode(raw)); if(!data || data.v!==1 || typeof data.k!=='object') return acMsg('That save code is broken.');
+    for(const k of SAVE_KEYS){ if(typeof data.k[k]==='string') localStorage.setItem(k,data.k[k]); else localStorage.removeItem(k); }
+    const u=acUser(); if(!u || u.name.toLowerCase()!==m[1].toLowerCase()){ const salt2=acB64.enc(crypto.getRandomValues(new Uint8Array(9))); store.set('tank-user',{name:m[1], salt:salt2, check:await pwCheck(m[1],pw,salt2)}); }
+    acMsg('Welcome back, '+m[1]+'! Loading your stuff…'); setTimeout(()=>location.reload(),700);
+  } catch(e){ acMsg('That save code is broken. Copy the whole thing and try again.'); }
+};
+acShow();
+
+// ---------- Tutorial: arrows point at what to click; shows the first time, Skip any time ----------
+const TUT=[
+  [null,'Welcome to Tank Battles 1! 🎉 Tanks here fight all by themselves. You decide how your tank thinks, then watch it battle. This quick tour shows you what to click.'],
+  ['#menuBtn','Press Menu any time to go back to the start menu and pick what you want to do.'],
+  ['#cv','This is the arena. Your tank starts on the left. Destroy all the bot tanks to win and go up a level. Every 5th level has a BOSS!'],
+  ['#lvlPick','Go back to any level you have reached. Pick it here and press Play this level.'],
+  ['.controls','Pause the battle, or make it faster with 1×, 2× and 4×. Turn Auto move off to drive your tank with your mouse!'],
+  ['.prog','Winning gives you points. Points raise your player level, which unlocks tournaments and more cool stuff.'],
+  ['#shop','Spend your points here on upgrades that stay on for a few battles.'],
+  ['#addRule','Build your own tank! Press + Add rule, then pick WHEN something happens and what your tank should DO.'],
+  ['.preset','Not sure where to start? Pick a ready-made brain, load it, and change it however you like.'],
+  ['#useMine','When your tank is ready, press this to send it into battle.'],
+  ['#cards','Or pick one of these tanks to be yours. Each one fights in its own way.'],
+  [null,'That\'s it, commander! Press the Tutorial button any time to see this again. Good luck! 💥'],
+];
+let tutOn=false, tutI=0, menuOn=false; var screen='battle';
+function showScreen(n){ screen=n; document.querySelectorAll('.screen').forEach(x=>x.hidden=x.dataset.screen!==n); window.scrollTo({top:0,behavior:'instant'}); }
+const tutEl=document.getElementById('tut'), tutSpot=document.getElementById('tutSpot'), tutArrow=document.getElementById('tutArrow'), tutBox=document.getElementById('tutBox');
+function tutPlace(){
+  if(!tutOn) return;
+  const sel=TUT[tutI][0], t=sel && document.querySelector(sel), vw=innerWidth, vh=innerHeight, bh=tutBox.offsetHeight;
+  if(!t){ tutSpot.className='tut-spot none'; tutSpot.removeAttribute('style'); tutArrow.style.display='none'; tutBox.style.top=Math.max(16,(vh-bh)/2)+'px'; return; }
+  const r=t.getBoundingClientRect(), pad=6;
+  const top=Math.max(4,r.top-pad), bottom=Math.min(vh-4,r.bottom+pad);
+  tutSpot.className='tut-spot'; Object.assign(tutSpot.style,{left:(r.left-pad)+'px',top:top+'px',width:(r.width+pad*2)+'px',height:Math.max(0,bottom-top)+'px'});
+  const cx=Math.min(vw-30,Math.max(30,r.left+r.width/2));
+  tutArrow.style.display=''; tutArrow.style.left=(cx-22)+'px';
+  if(vh-bottom >= bh+80){ tutArrow.classList.remove('down'); tutArrow.style.top=(bottom+4)+'px'; tutBox.style.top=(bottom+68)+'px'; }
+  else if(top >= bh+80){ tutArrow.classList.add('down'); tutArrow.style.top=(top-62)+'px'; tutBox.style.top=(top-68-bh)+'px'; }
+  else { tutArrow.classList.remove('down'); const y=Math.max(16,vh-bh-16); tutArrow.style.top=(y-62)+'px'; tutBox.style.top=y+'px'; }
+}
+function tutShow(){
+  const [sel,txt]=TUT[tutI];
+  document.getElementById('tutText').textContent=txt;
+  document.getElementById('tutStep').textContent=(tutI+1)+' / '+TUT.length;
+  document.getElementById('tutBack').hidden=tutI===0;
+  document.getElementById('tutNext').textContent=tutI===TUT.length-1?'Let\'s play!':'Next';
+  document.getElementById('tutSkip').hidden=tutI===TUT.length-1;
+  const t=sel && document.querySelector(sel);
+  const sc=t && t.closest('.screen'); showScreen(sc ? sc.dataset.screen : 'battle');
+  if(t) t.scrollIntoView({block:'center',behavior:'instant'});
+  tutPlace(); requestAnimationFrame(tutPlace);
+  document.getElementById('tutNext').focus({preventScroll:true});
+}
+function tutStart(){ tutOn=true; tutI=0; tutEl.hidden=false; tutShow(); }
+function tutEnd(){ tutOn=false; tutEl.hidden=true; store.set('tank-tutorial',true); showScreen('battle'); }
+document.getElementById('tutNext').onclick=()=>{ if(tutI>=TUT.length-1) tutEnd(); else { tutI++; tutShow(); } };
+document.getElementById('tutBack').onclick=()=>{ if(tutI>0){ tutI--; tutShow(); } };
+document.getElementById('tutSkip').onclick=tutEnd;
+document.getElementById('tutBtn').onclick=tutStart;
+addEventListener('resize',tutPlace); addEventListener('scroll',tutPlace,{passive:true});
+addEventListener('keydown',e=>{ if(tutOn && e.key==='Escape') tutEnd(); });
+
+// ---------- 2 players on 1 computer (no login, no internet needed) ----------
+const duo={p1:0, p2:0, map:0, p2type:0, coop:true, lvl:1};
+const keys={p1:{}, p2:{}};
+const KEYMAP={ KeyW:['p1','up'], KeyS:['p1','down'], KeyA:['p1','left'], KeyD:['p1','right'], Space:['p1','fire'],
+  ArrowUp:['p2','up'], ArrowDown:['p2','down'], ArrowLeft:['p2','left'], ArrowRight:['p2','right'], Enter:['p2','fire'], NumpadEnter:['p2','fire'], Slash:['p2','fire'] };
+function duoKey(e,down){
+  if(mode!=='duo') return;
+  const t=e.target; if(t && (t.tagName==='INPUT'||t.tagName==='TEXTAREA'||t.tagName==='SELECT')) return;
+  const k=KEYMAP[e.code]; if(!k) return;
+  const who = net.role==='host' ? 'p1' : net.role==='guest' ? 'p2' : k[0];
+  const act = net.role && e.code==='Enter' ? 'fire' : k[1];
+  if(net.role && keys[who][act]===down){ e.preventDefault(); return; }
+  keys[who][act]=down; e.preventDefault();
+  if(net.role==='guest') netSend({t:'k', k:keys.p2});
+}
+addEventListener('keydown',e=>duoKey(e,true)); addEventListener('keyup',e=>duoKey(e,false));
+addEventListener('blur',()=>{ keys.p1={}; keys.p2={}; });
+document.getElementById('duoStart').onclick=()=>{
+  duo.p1=0; duo.p2=0; duo.lvl=1; duo.coop=document.getElementById('duoMode').value!=='vs'; duo.map=+document.getElementById('duoMap').value||0;
+  duo.p2type = chosen===0 ? 1 : 0;
+  mode='duo'; startLevel(); document.activeElement && document.activeElement.blur();
+  document.querySelector('.field').scrollIntoView({behavior:'smooth',block:'start'});
+};
+(()=>{ const sel=document.getElementById('duoMap'); MAPS.forEach((m,i)=>{ const o=document.createElement('option'); o.value=i; o.textContent=m.name; sel.appendChild(o); }); })();
+// ---------- Start menu: shows when you open the game ----------
+const menuEl=document.getElementById('menu');
+function menuOpen(){ menuOn=true; menuEl.hidden=false; tutOn&&tutEnd();
+  document.getElementById('mLvl').textContent='Level '+level.toLocaleString(); document.getElementById('mPl').textContent='Player level '+playerLevel().toLocaleString(); document.getElementById('mPts').textContent=prog.points.toLocaleString()+' points';
+  document.getElementById('mPlay').focus(); }
+function menuClose(){ menuOn=false; menuEl.hidden=true; }
+document.getElementById('menuBtn').onclick=menuOpen;
+document.getElementById('mPlay').onclick=()=>{ menuClose(); showScreen('battle'); if(!store.get('tank-tutorial',false)) setTimeout(tutStart,200); };
+menuEl.querySelectorAll('[data-go]').forEach(b=>b.onclick=()=>{ menuClose(); const g=b.dataset.go;
+  if(g==='tutorial'){ showScreen('battle'); tutStart(); return; }
+  showScreen(g); });
+document.querySelectorAll('[data-back]').forEach(b=>b.onclick=menuOpen);
+addEventListener('keydown',e=>{ if(e.key==='Escape' && !menuOn && !tutOn && !lockedOut){ e.preventDefault(); document.activeElement && document.activeElement.blur && document.activeElement.blur(); menuOpen(); } });
+menuOpen();
+
+window.__tankTest = { tcheck(){ const c=tankCode(); readShortCode(c); return JSON.stringify(readShortCode.last)===JSON.stringify(cleanRules(my.rules)) ? 'same '+c : 'DIFF'; }, netdbg(){ return {role:net.role, ch:!!net.ch, pending:!!net.pending, screen}; }, nb(){ return bullets.filter(b=>b.owner===tanks[0]).length; }, pt(i,id){ return powerTime(tanks[i], ABILITIES.find(a=>a.id===id)); }, perks(){ return [...tanks[0].perks]; }, hps(){ return tanks.map(t=>t.label+':'+Math.round(t.hp)); }, killBots(){ for(const t of tanks.slice(1)){ t.hp=0; t.alive=false; } }, speed(n){ speed=n; }, run(n){ let i=0; for(;i<n&&!over;i++) tick(); return {over, won:!!(over&&tanks[0].alive), t:i}; }, hz(){ return {mines:mines.length,strikes:strikes.length,walls:WALLS.length,weak:weak.size}; }, strike(){ nextStrike=1; }, admin(on){ adminByCode=on; applyAdmin(); }, dropAt(x,y){ dropAbility(x,y); const k=pickups[pickups.length-1]; return {x:k.x,y:k.y,inWall:hitsWall(k.x,k.y,15)}; }, shield(){ const y=tanks[0]; y.power=ABILITIES[1]; y.powerT=9999; }, xp(n){ prog.xp=n; prog.points=n; saveProg(); renderProg(); }, gen(L){ return mapFor(L); }, online(d){ online={opp:oppFrom(d),map:1}; mode='online'; startLevel(); }, go(L,c){ mode='campaign'; level=L; if(c!=null) chosen=c; startLevel(); }, state(){ return tanks.map(t=>({n:t.label,hp:Math.round(t.hp),x:Math.round(t.x),y:Math.round(t.y),alive:t.alive,frozen:t.frozen,stuck:t.unstick})); } };
+renderRules(); renderColors();
+startLevel();
+requestAnimationFrame(frame);
+})();
+</script>
